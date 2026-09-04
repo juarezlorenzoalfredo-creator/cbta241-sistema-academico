@@ -1,13 +1,27 @@
 begin;
 
--- Prevent future objects created by postgres/supabase_admin from silently
--- inheriting broad anon/authenticated privileges.
+-- Prevent future objects created by postgres from silently inheriting broad
+-- anon/authenticated privileges. Local Supabase runs migrations as postgres.
 alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated;
 alter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated;
 alter default privileges for role postgres in schema public revoke execute on functions from public, anon, authenticated;
-alter default privileges for role supabase_admin in schema public revoke all on tables from anon, authenticated;
-alter default privileges for role supabase_admin in schema public revoke all on sequences from anon, authenticated;
-alter default privileges for role supabase_admin in schema public revoke execute on functions from public, anon, authenticated;
+
+-- Hosted Supabase can additionally permit hardening defaults for supabase_admin,
+-- while the local CLI may reject ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin.
+-- Treat that specific permission difference as a portability condition without
+-- weakening the postgres defaults that govern application migrations.
+do $$
+begin
+  begin
+    execute 'alter default privileges for role supabase_admin in schema public revoke all on tables from anon, authenticated';
+    execute 'alter default privileges for role supabase_admin in schema public revoke all on sequences from anon, authenticated';
+    execute 'alter default privileges for role supabase_admin in schema public revoke execute on functions from public, anon, authenticated';
+  exception
+    when insufficient_privilege then
+      raise notice 'Skipping supabase_admin default-privilege hardening in this environment: insufficient privilege';
+  end;
+end
+$$;
 
 -- Reassert the existing object boundary after changing defaults.
 revoke all privileges on all tables in schema public from anon, authenticated;
