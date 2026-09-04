@@ -21,12 +21,34 @@ jobs:
           ref: develop
           fetch-depth: 0
 
+      - name: Diagnose bootstrap chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          valid = re.compile(r'^[A-Za-z0-9+/=]*$')
+          total = 0
+          for p in sorted(Path('bootstrap/rc5').glob('part-*')):
+              raw = p.read_text()
+              clean = ''.join(raw.split())
+              bad = ''.join(sorted(set(ch for ch in clean if ch not in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=')))
+              print(f'{p}: raw={len(raw)} clean={len(clean)} mod4={len(clean)%4} bad={bad!r}')
+              total += len(clean)
+          print('total_clean=', total, 'mod4=', total % 4)
+          PY
+
       - name: Reconstruct RC5 archive
         shell: bash
         run: |
           set -euo pipefail
-          cat bootstrap/rc5/part-* | tr -d '\r\n\t ' > /tmp/rc5.b64
-          echo "Base64 bytes: $(wc -c < /tmp/rc5.b64)"
+          LC_ALL=C cat bootstrap/rc5/part-* | tr -cd 'A-Za-z0-9+/=' > /tmp/rc5.b64
+          echo "Sanitized base64 bytes: $(wc -c < /tmp/rc5.b64)"
+          rem=$(( $(wc -c < /tmp/rc5.b64) % 4 ))
+          if [ "$rem" -eq 2 ]; then printf '==' >> /tmp/rc5.b64; fi
+          if [ "$rem" -eq 3 ]; then printf '=' >> /tmp/rc5.b64; fi
+          if [ "$rem" -eq 1 ]; then echo 'Irrecoverable base64 length (mod 4 = 1)' >&2; exit 2; fi
           base64 --decode /tmp/rc5.b64 > /tmp/rc5.tar.xz
           xz -t /tmp/rc5.tar.xz
           echo "XZ bytes: $(wc -c < /tmp/rc5.tar.xz)"
