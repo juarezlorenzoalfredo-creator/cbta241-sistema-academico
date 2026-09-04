@@ -1,0 +1,1 @@
+retry diagnostics after base64 sanitization
