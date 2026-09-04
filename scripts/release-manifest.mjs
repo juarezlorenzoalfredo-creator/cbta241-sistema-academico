@@ -36,11 +36,9 @@ const files = walk(root).sort().map((file) => {
 });
 
 const manifest = {
+  schemaVersion: 1,
   project: 'Sistema Académico Digital CBTA 241',
   version: pkg.version,
-  generatedAt: new Date().toISOString(),
-  gitSha: process.env.GITHUB_SHA ?? null,
-  githubRunId: process.env.GITHUB_RUN_ID ?? null,
   fileCount: files.length,
   sourceTreeSha256: createHash('sha256').update(files.map((f) => `${f.sha256}  ${f.path}`).join('\n')).digest('hex'),
   verification: {
