@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/bootstrap-hydrate-rc5.yml'
       - 'bootstrap/rc5-clean/**'
+      - 'bootstrap/assets/**'
   workflow_dispatch:
 
 permissions:
@@ -39,6 +40,18 @@ jobs:
           mkdir -p /tmp/rc5-src
           tar -xJf /tmp/rc5.tar.xz -C /tmp/rc5-src
 
+      - name: Preserve staged institutional assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s bootstrap/assets/icon-192.b64
+          test -s bootstrap/assets/icon-512.b64
+          test -s bootstrap/assets/icon-maskable-512.b64
+          mkdir -p /tmp/cbta241-assets
+          cp bootstrap/assets/icon-192.b64 /tmp/cbta241-assets/
+          cp bootstrap/assets/icon-512.b64 /tmp/cbta241-assets/
+          cp bootstrap/assets/icon-maskable-512.b64 /tmp/cbta241-assets/
+
       - name: Locate and verify RC5 source
         id: source
         shell: bash
@@ -63,6 +76,36 @@ jobs:
           rm -f .github/workflows/bootstrap-hydrate-rc5.yml
           test -f package.json
           test -f .github/workflows/ci.yml
+
+      - name: Restore institutional PWA assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p public/institution
+          base64 --decode /tmp/cbta241-assets/icon-192.b64 > public/institution/icon-192.png
+          base64 --decode /tmp/cbta241-assets/icon-512.b64 > public/institution/icon-512.png
+          base64 --decode /tmp/cbta241-assets/icon-maskable-512.b64 > public/institution/icon-maskable-512.png
+          cp public/institution/icon-512.png public/institution/cbta241-logo.png
+          file public/institution/icon-192.png public/institution/icon-512.png public/institution/icon-maskable-512.png public/institution/cbta241-logo.png
+          python - <<'PY'
+          from pathlib import Path
+          import struct
+
+          expected = {
+              'public/institution/icon-192.png': (192, 192),
+              'public/institution/icon-512.png': (512, 512),
+              'public/institution/icon-maskable-512.png': (512, 512),
+              'public/institution/cbta241-logo.png': (512, 512),
+          }
+          for name, dims in expected.items():
+              data = Path(name).read_bytes()
+              if data[:8] != b'\x89PNG\r\n\x1a\n':
+                  raise SystemExit(f'{name}: invalid PNG signature')
+              width, height = struct.unpack('>II', data[16:24])
+              if (width, height) != dims:
+                  raise SystemExit(f'{name}: expected {dims}, got {(width, height)}')
+              print(name, width, height, len(data))
+          PY
 
       - name: Apply server-time lint hardening
         shell: bash
