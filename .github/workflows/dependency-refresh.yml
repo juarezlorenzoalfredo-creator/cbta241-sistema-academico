@@ -1,0 +1,44 @@
+name: dependency-refresh-once
+
+on:
+  push:
+    branches: ['fix/dependency-audit']
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/dependency-audit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Refresh vulnerable dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --save-dev --package-lock-only @playwright/test@1.62.1
+          npm pkg set overrides.uuid=11.1.1
+          npm install --package-lock-only
+          npm ci --no-audit --no-fund
+          npm audit --omit=dev --audit-level=moderate
+          npm run lint
+          npm run typecheck
+          npm run test
+          npm run build
+      - name: Commit audited dependency lock and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/dependency-refresh.yml
+          git add package.json package-lock.json
+          git commit -m 'fix: refresh dependencies after security audit'
+          git push origin HEAD:fix/dependency-audit
