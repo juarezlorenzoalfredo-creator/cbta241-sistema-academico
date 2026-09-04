@@ -1,0 +1,10 @@
+{
+  "date": "2026-09-03",
+  "source": "static structural preview using the production CSS tokens/layout",
+  "viewports": [
+    {"width":390,"height":844,"horizontal_overflow":false,"rail":"hidden","mobile_bar":"visible"},
+    {"width":768,"height":1024,"horizontal_overflow":false,"rail":"hidden","mobile_bar":"visible"},
+    {"width":1440,"height":1000,"horizontal_overflow":false,"rail":"visible","mobile_bar":"hidden"}
+  ],
+  "result": "PASS"
+}

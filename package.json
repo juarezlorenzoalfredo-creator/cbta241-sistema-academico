@@ -1,0 +1,60 @@
+{
+  "name": "cbta241-sistema-academico",
+  "version": "1.0.0-rc.5",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:security": "node scripts/security-audit.mjs",
+    "test:sql": "node scripts/sql-contract-audit.mjs",
+    "qa": "npm run lint && npm run typecheck && npm run test && npm run test:security && npm run test:sql && npm run test:project && npm run test:a11y:static && npm run build",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:test": "supabase test db",
+    "verify:domain": "node scripts/verify-domain.mjs",
+    "preview:static": "node scripts/static-preview-server.mjs",
+    "test:project": "node scripts/project-audit.mjs",
+    "test:a11y:static": "node scripts/accessibility-audit.mjs",
+    "release:manifest": "node scripts/release-manifest.mjs",
+    "qa:static": "npm run verify:domain && npm run test:syntax && npm run test:security && npm run test:sql && npm run test:project && npm run test:a11y:static",
+    "test:syntax": "node scripts/typescript-syntax-audit.mjs",
+    "bootstrap:superadmin": "node scripts/bootstrap-superadmin.mjs",
+    "db:types": "supabase gen types typescript --linked > types/database.ts",
+    "test:e2e:required": "node scripts/assert-e2e-env.mjs && playwright test",
+    "qa:release": "npm run qa && npm run db:test && npm run test:e2e:required"
+  },
+  "dependencies": {
+    "@supabase/ssr": "0.12.5",
+    "@supabase/supabase-js": "2.112.4",
+    "next": "16.3.4",
+    "qrcode": "1.5.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "zod": "4.1.5",
+    "pdf-lib": "1.17.1",
+    "exceljs": "4.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "22.15.30",
+    "@types/qrcode": "1.5.5",
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "eslint": "9.34.0",
+    "eslint-config-next": "16.3.4",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.2",
+    "vitest": "3.2.4"
+  }
+}

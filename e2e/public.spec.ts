@@ -1,0 +1,4 @@
+import { test, expect } from '@playwright/test';
+test('public landing exposes institutional identity and login',async({page})=>{await page.goto('/');await expect(page.getByRole('heading',{name:/trayectoria académica/i})).toBeVisible();await expect(page.getByAltText(/Escudo oficial/i)).toBeVisible();await expect(page.getByRole('link',{name:/Acceder al sistema/i})).toBeVisible()});
+test('invalid verification token does not expose academic data',async({page})=>{await page.goto('/verificar/this-token-is-deliberately-invalid-and-long-enough-123456');await expect(page.getByRole('heading',{name:/No fue posible validar/i})).toBeVisible();await expect(page.getByText(/calificaciones/i)).toHaveCount(0)});
+test('protected portal redirects anonymous visitor to login',async({page})=>{await page.goto('/alumno');await expect(page).toHaveURL(/\/login/);await expect(page.getByRole('heading',{name:'Ingresar'})).toBeVisible()});

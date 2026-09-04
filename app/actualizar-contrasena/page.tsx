@@ -1,0 +1,2 @@
+import { UpdatePasswordForm } from '@/components/UpdatePasswordForm';
+export default function UpdatePassword(){return <main id="contenido" className="login-stage" style={{gridTemplateColumns:'1fr',maxWidth:'540px'}}><section className="login-panel"><div className="eyebrow">Seguridad de cuenta</div><h1>Actualizar contraseña</h1><p className="form-note">Esta pantalla se usa después de una recuperación de contraseña o desde una sesión válida.</p><UpdatePasswordForm/></section></main>}

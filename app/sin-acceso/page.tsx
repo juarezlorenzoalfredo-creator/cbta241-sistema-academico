@@ -1,0 +1,2 @@
+import Link from 'next/link';
+export default function NoAccessPage(){return <main id="contenido" className="login-stage" style={{gridTemplateColumns:'1fr',maxWidth:'620px'}}><section className="login-panel"><div className="eyebrow">Acceso denegado</div><h1>Tu cuenta no tiene permiso para esta sección.</h1><p className="form-note">La interfaz no concede permisos: la autorización también se valida en servidor y base de datos.</p><Link className="btn btn-primary" href="/">Volver</Link></section></main>}

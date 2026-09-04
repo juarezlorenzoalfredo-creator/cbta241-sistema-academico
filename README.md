@@ -1,6 +1,6 @@
 # Sistema Académico Digital CBTA 241
 
-PWA institucional para el **Centro de Bachillerato Tecnológico Agropecuario No. 241**. Release Candidate actual: **1.0.0-rc.5**. Implementa alumnos, docentes, Control Escolar y Superadmin; P1/P2/P3, NP, publicación atómica, correcciones de 72 horas, extraordinario único, historial, auditoría, boletas PDF versionadas, verificación QR y exportación docente XLSX con historial de cambios.
+PWA institucional para el **Centro de Bachillerato Tecnológico Agropecuario No. 241**. Release Candidate actual: **1.0.0-rc.4**. Implementa alumnos, docentes, Control Escolar y Superadmin; P1/P2/P3, NP, publicación atómica, correcciones de 72 horas, extraordinario único, historial, auditoría, boletas PDF versionadas, verificación QR y exportación docente XLSX con historial de cambios.
 
 ## Stack fijado
 
@@ -60,9 +60,9 @@ La aplicación usa `DENY BY DEFAULT`. Los estudiantes solo ven su información p
 Nunca expongas `SUPABASE_SERVICE_ROLE_KEY` como `NEXT_PUBLIC_*`.
 
 
-## Evidencia de base de datos real — RC5
+## Evidencia de base de datos real — RC4
 
-La RC5 fue validada contra un proyecto Supabase dedicado y limpio (`hwytxddwuffbcingovlg`):
+La RC4 fue validada contra un proyecto Supabase dedicado y limpio (`hwytxddwuffbcingovlg`):
 
 - esquema/contratos pgTAP base: **21/21 PASS** y bootstrap `service_role` validado;
 - RLS adversarial: suite de **22 tests** reejecutada; adicionalmente, revocación por perfil inactivo **6/6 PASS**;
@@ -70,7 +70,7 @@ La RC5 fue validada contra un proyecto Supabase dedicado y limpio (`hwytxddwuffb
 - seed de demostración: **192 calificaciones / 6 publicaciones / 0 publicaciones sin contexto** dentro de transacción rollback;
 - buckets `academic-documents` e `institution-private`: **privados** y con políticas verificadas.
 
-Las pruebas runtime de PostgreSQL se ejecutaron contra Supabase real y se revirtieron al finalizar, por lo que el proyecto validado permanece sin datos académicos de prueba persistentes. Las migraciones remotas llegan a `001`–`027`. El build Next.js/Vitest/Playwright completo sigue sujeto a un entorno que pueda descargar dependencias npm.
+Las pruebas runtime de PostgreSQL se ejecutaron contra Supabase real y se revirtieron al finalizar, por lo que el proyecto validado permanece sin datos académicos de prueba persistentes. Las migraciones remotas llegan a `001`–`026`. El build Next.js/Vitest/Playwright completo sigue sujeto a un entorno que pueda descargar dependencias npm.
 
 ## Bootstrap inicial de SUPERADMIN
 

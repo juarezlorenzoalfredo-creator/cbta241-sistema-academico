@@ -1,0 +1,16 @@
+{
+  "name": "Sistema Académico Digital CBTA 241",
+  "short_name": "CBTA 241",
+  "description": "Plataforma académica institucional del CBTA 241",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f9f7",
+  "theme_color": "#365b34",
+  "lang": "es-MX",
+  "icons": [
+    {"src":"/institution/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"/institution/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"/institution/icon-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+  ]
+}
