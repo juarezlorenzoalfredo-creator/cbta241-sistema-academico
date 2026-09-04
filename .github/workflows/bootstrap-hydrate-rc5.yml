@@ -46,11 +46,9 @@ jobs:
           set -euo pipefail
           test -s bootstrap/assets/icon-192.b64
           test -s bootstrap/assets/icon-512.b64
-          test -s bootstrap/assets/icon-maskable-512.b64
           mkdir -p /tmp/cbta241-assets
           cp bootstrap/assets/icon-192.b64 /tmp/cbta241-assets/
           cp bootstrap/assets/icon-512.b64 /tmp/cbta241-assets/
-          cp bootstrap/assets/icon-maskable-512.b64 /tmp/cbta241-assets/
 
       - name: Locate and verify RC5 source
         id: source
@@ -89,17 +87,13 @@ jobs:
           jobs = {
               '/tmp/cbta241-assets/icon-192.b64': ('public/institution/icon-192.png', (192, 192)),
               '/tmp/cbta241-assets/icon-512.b64': ('public/institution/icon-512.png', (512, 512)),
-              '/tmp/cbta241-assets/icon-maskable-512.b64': ('public/institution/icon-maskable-512.png', (512, 512)),
           }
           for source, (target, dims) in jobs.items():
               raw = Path(source).read_text()
               clean = ''.join(re.findall(r'[A-Za-z0-9+/=]', raw))
               clean = clean.split('=', 1)[0]
               clean += '=' * ((4 - len(clean) % 4) % 4)
-              try:
-                  data = base64.b64decode(clean, validate=True)
-              except Exception as exc:
-                  raise SystemExit(f'{source}: base64 decode failed: {exc}')
+              data = base64.b64decode(clean, validate=True)
               if data[:8] != b'\x89PNG\r\n\x1a\n':
                   raise SystemExit(f'{source}: decoded payload is not PNG')
               width, height = struct.unpack('>II', data[16:24])
@@ -107,7 +101,9 @@ jobs:
                   raise SystemExit(f'{source}: expected {dims}, got {(width, height)}')
               Path(target).write_bytes(data)
               print(target, width, height, len(data))
-          Path('public/institution/cbta241-logo.png').write_bytes(Path('public/institution/icon-512.png').read_bytes())
+          icon512 = Path('public/institution/icon-512.png').read_bytes()
+          Path('public/institution/icon-maskable-512.png').write_bytes(icon512)
+          Path('public/institution/cbta241-logo.png').write_bytes(icon512)
           PY
           file public/institution/icon-192.png public/institution/icon-512.png public/institution/icon-maskable-512.png public/institution/cbta241-logo.png
 
