@@ -1,4 +1,5 @@
 import { PageTitle } from '@/components/PageTitle';
+import { PendingSubmitButton } from '@/components/PendingSubmitButton';
 import { requireAuth } from '@/lib/auth/session';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { updateInstitutionAction } from '@/features/admin/actions';
@@ -22,7 +23,7 @@ export default async function InstitutionSettings(){
       <div className="field"><label>Mínima aprobatoria</label><input aria-label="Mínima aprobatoria" value={Number(settings.passing_grade).toFixed(1)} readOnly/><small>Regla académica V1.0 fijada en 6.0.</small></div>
       <div className="field"><label>Firma del Director (PNG/JPEG/WebP, ≤5 MB)</label><input aria-label="Firma del Director (PNG/JPEG/WebP, ≤5 MB)" name="signature" type="file" accept="image/png,image/jpeg,image/webp"/><small>{settings.director_signature_storage_path?'Activo privado configurado':'Pendiente'}</small></div>
       <div className="field"><label>Sello institucional (PNG/JPEG/WebP, ≤5 MB)</label><input aria-label="Sello institucional (PNG/JPEG/WebP, ≤5 MB)" name="seal" type="file" accept="image/png,image/jpeg,image/webp"/><small>{settings.institutional_seal_storage_path?'Activo privado configurado':'Pendiente'}</small></div>
-      <div className="wide"><button className="btn btn-primary">Guardar configuración</button></div>
+      <div className="wide"><PendingSubmitButton idleLabel="Guardar configuración" /></div>
     </form></section>
   </>;
 }
