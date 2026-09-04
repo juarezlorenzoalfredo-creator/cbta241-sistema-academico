@@ -5,7 +5,7 @@ on:
     branches: [develop]
     paths:
       - '.github/workflows/bootstrap-hydrate-rc5.yml'
-      - 'bootstrap/rc5/**'
+      - 'bootstrap/rc5-clean/**'
   workflow_dispatch:
 
 permissions:
@@ -14,6 +14,10 @@ permissions:
 jobs:
   hydrate:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
     steps:
       - name: Checkout bootstrap branch
         uses: actions/checkout@v4
@@ -21,25 +25,19 @@ jobs:
           ref: develop
           fetch-depth: 0
 
-      - name: Reconstruct candidate RC5 archive
+      - name: Reconstruct and cryptographically verify RC5 archive
         shell: bash
         run: |
           set -euo pipefail
-          # part-09 is shorter than the fixed-size chunks and therefore marks
-          # the end of the original archive. part-10/11 came from a later,
-          # incompatible transfer attempt and must not be concatenated.
-          cat bootstrap/rc5/part-{00..09} | tr -d '\r\n\t ' > /tmp/rc5.b64
-          echo "Candidate base64 bytes: $(wc -c < /tmp/rc5.b64)"
-          rem=$(( $(wc -c < /tmp/rc5.b64) % 4 ))
-          if [ "$rem" -eq 2 ]; then printf '==' >> /tmp/rc5.b64; fi
-          if [ "$rem" -eq 3 ]; then printf '=' >> /tmp/rc5.b64; fi
-          if [ "$rem" -eq 1 ]; then echo 'Irrecoverable base64 length' >&2; exit 2; fi
+          test "$(find bootstrap/rc5-clean -maxdepth 1 -type f -name 'part-*' | wc -l)" -eq 12
+          cat bootstrap/rc5-clean/part-{000..011} | tr -d '\r\n\t ' > /tmp/rc5.b64
+          test "$(wc -c < /tmp/rc5.b64)" -eq 141116
           base64 --decode /tmp/rc5.b64 > /tmp/rc5.tar.xz
+          echo 'fe86c254c527a7c4de2761b6a01509fb28e0ffff90ec45d26f7c1c9e7908900b  /tmp/rc5.tar.xz' | sha256sum -c -
           xz -t /tmp/rc5.tar.xz
-          echo "Validated XZ bytes: $(wc -c < /tmp/rc5.tar.xz)"
+          test "$(wc -c < /tmp/rc5.tar.xz)" -eq 105836
           mkdir -p /tmp/rc5-src
           tar -xJf /tmp/rc5.tar.xz -C /tmp/rc5-src
-          find /tmp/rc5-src -maxdepth 3 -name package.json -print
 
       - name: Locate and verify RC5 source
         id: source
@@ -50,7 +48,7 @@ jobs:
           test -n "$PACKAGE"
           ROOT=$(dirname "$PACKAGE")
           echo "root=$ROOT" >> "$GITHUB_OUTPUT"
-          node -e "const p=require('$ROOT/package.json'); if(p.version!=='1.0.0-rc.5') throw new Error('Unexpected version '+p.version); console.log(p.name,p.version,p.dependencies.next)"
+          node -e "const p=require('$ROOT/package.json'); if(p.version!=='1.0.0-rc.5') throw new Error('Unexpected version '+p.version); if(p.dependencies.next!=='16.3.4') throw new Error('Unexpected Next.js '+p.dependencies.next); console.log(p.name,p.version,p.dependencies.next)"
           test -f "$ROOT/docs/RELEASE_MANIFEST.json"
           node -e "const m=require('$ROOT/docs/RELEASE_MANIFEST.json'); if(m.version!=='1.0.0-rc.5') throw new Error('Manifest version mismatch'); if(m.sourceTreeSha256!=='4f6b580dde3fe42e46b550fc46e67e1210b41abceef167cce8dd22f9eb6169d9') throw new Error('Manifest tree hash mismatch'); console.log('manifest',m.fileCount,m.sourceTreeSha256)"
 
@@ -60,15 +58,13 @@ jobs:
           ROOT: ${{ steps.source.outputs.root }}
         run: |
           set -euo pipefail
-          rsync -a \
-            --exclude='.git/' \
-            --exclude='.bootstrap/' \
-            --exclude='bootstrap/' \
-            "$ROOT/" ./
+          rsync -a --exclude='.git/' "$ROOT/" ./
+          rm -rf .bootstrap bootstrap
+          rm -f .github/workflows/bootstrap-hydrate-rc5.yml
           test -f package.json
           test -f .github/workflows/ci.yml
 
-      - name: Setup Node
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -101,13 +97,15 @@ jobs:
         run: npm run test:a11y:static
 
       - name: Next.js build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
-          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
         run: npm run build
 
-      - name: Commit hydrated RC5 only after gates pass
+      - name: Install Chromium for public E2E
+        run: npx playwright install --with-deps chromium
+
+      - name: Public E2E on desktop Chromium
+        run: npx playwright test e2e/public.spec.ts --project=desktop-chromium
+
+      - name: Commit hydrated RC5 only after all gates pass
         shell: bash
         run: |
           set -euo pipefail
@@ -118,5 +116,5 @@ jobs:
             echo 'Nothing to commit.'
             exit 0
           fi
-          git commit -m 'chore: hydrate RC5 source and npm lockfile'
+          git commit -m 'chore: hydrate RC5 source and npm lockfile after passing gates'
           git push origin HEAD:develop
