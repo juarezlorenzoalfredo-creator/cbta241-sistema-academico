@@ -4,7 +4,16 @@ import { join, relative, resolve } from 'node:path';
 
 const root = resolve(new URL('..', import.meta.url).pathname);
 const output = join(root, 'docs', 'RELEASE_MANIFEST.json');
-const excludes = new Set(['.git', 'node_modules', '.next']);
+const excludes = new Set([
+  '.git',
+  'node_modules',
+  '.next',
+  '.verified',
+  'coverage',
+  'playwright-report',
+  'test-results',
+  'out'
+]);
 
 function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
