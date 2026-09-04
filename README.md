@@ -1,90 +1,58 @@
 # Sistema Académico Digital CBTA 241
 
-PWA institucional para el **Centro de Bachillerato Tecnológico Agropecuario No. 241**. Release Candidate actual: **1.0.0-rc.4**. Implementa alumnos, docentes, Control Escolar y Superadmin; P1/P2/P3, NP, publicación atómica, correcciones de 72 horas, extraordinario único, historial, auditoría, boletas PDF versionadas, verificación QR y exportación docente XLSX con historial de cambios.
+PWA institucional para el **Centro de Bachillerato Tecnológico Agropecuario No. 241**. Versión certificada ejecutable: **1.0.0-rc.5**. Implementa perfiles Alumno, Docente, Control Escolar y Superadmin; P1/P2/P3, NP, publicación atómica, correcciones de 72 horas, extraordinario único, historial, auditoría, documentos oficiales PDF versionados, verificación QR y exportación docente XLSX.
 
-## Stack fijado
+## Stack
 
 - Next.js 16.3.4 / React 19.2.0 / TypeScript strict.
-- Tailwind CSS 4.3.3 + tokens CSS institucionales.
+- Tailwind CSS 4.3.3 + tokens institucionales.
 - Supabase Auth, PostgreSQL/RLS y Storage privado.
 - Vitest, Playwright, pgTAP/Supabase CLI y GitHub Actions.
 
 ## Ejecución local
 
-1. Instala Node.js 22 LTS o compatible (`>=20`).
-2. Instala Docker Desktop y Supabase CLI para el entorno local de base de datos.
-3. Copia `.env.example` a `.env.local`.
-4. Ejecuta `supabase start` y copia URL/anon/service-role locales a `.env.local` (Service Role se usa solo en scripts administrativos server-side).
-5. Ejecuta `supabase db reset` para migraciones + seed.
-6. Para cuentas demo **solo en Supabase local**: `ALLOW_DEMO_USERS=true node scripts/provision-demo-users.mjs`. El script genera contraseñas fuertes de una sola ocasión y las muestra únicamente en la terminal; puedes definir `DEMO_*_PASSWORD` solo para pruebas controladas.
-7. Ejecuta `npm install` y `npm run dev`.
-8. Abre `http://localhost:3000`.
+1. Instala Node.js 22 LTS, Docker Desktop y Supabase CLI.
+2. Copia `.env.example` a `.env.local`.
+3. Ejecuta `npm ci`.
+4. Ejecuta `supabase start` y coloca URL, publishable/anon key y Service Role locales en `.env.local`.
+5. Ejecuta `supabase db reset` para aplicar las 27 migraciones y el seed.
+6. Para cuentas demo **solo en Supabase local**: `ALLOW_DEMO_USERS=true node scripts/provision-demo-users.mjs`. El script genera contraseñas fuertes de una sola ocasión si no se proporcionan overrides.
+7. Ejecuta `npm run dev` y abre `http://localhost:3000`.
 
-> En producción no uses las contraseñas demo. `enable_signup=false`: las cuentas se aprovisionan de forma administrativa.
+> `SUPABASE_SERVICE_ROLE_KEY` es server-only. La interfaz Superadmin la necesita para crear o deshabilitar identidades Auth; jamás debe exponerse como `NEXT_PUBLIC_*` ni incorporarse al repositorio.
 
-## Gates de calidad
+## Certificación ejecutable
 
-```bash
-npm run lint
-npm run typecheck
-npm run test
-npm run test:security
-npm run test:sql
-npm run test:project
-npm run test:a11y:static
-npm run build
-npm run test:e2e
-supabase test db
-```
+El commit de certificación previo al cierre de documentación superó en GitHub Actions:
 
-`npm run qa:static` agrupa los gates reproducibles sin dependencias externas; `npm run qa` ejecuta lint/typecheck/unit/security/SQL/project/a11y/build; `npm run qa:release` añade pgTAP y E2E autenticado obligatorio. `test:e2e:required` falla si falta cualquiera de las ocho variables de credenciales por rol, evitando un falso verde por tests omitidos.
+- `npm ci` y `npm audit --omit=dev --audit-level=high` con **0 vulnerabilidades de producción**;
+- ESLint y `tsc --noEmit`;
+- Vitest **14/14 PASS**, incluyendo cálculo académico y generación real de PDF con QR/firma/sello de prueba;
+- seguridad estática, contratos SQL **40/40**, integridad **14/14** y accesibilidad estática;
+- `next build` de producción, **57 rutas** generadas/validadas;
+- Supabase local desde cero con migraciones `001`–`027`, seed y pgTAP;
+- E2E autenticado de los cuatro roles en Chromium desktop y Android;
+- E2E público en Chromium desktop y Android;
+- ensayo backup → destrucción → reconstrucción por migraciones → restore → comparación de conteos → RLS/pgTAP.
 
-## Reglas académicas implementadas
+El workflow de CI vuelve a ejecutar estos gates para cualquier cambio en `main`, `develop`, `feat/**`, `fix/**` o `security/**`.
+
+## Reglas académicas
 
 - Tres parciales con el mismo peso.
-- Escala 0.0–10.0 con una decimal.
-- `ROUND HALF UP` a una decimal.
+- Escala 0.0–10.0, una decimal y `ROUND HALF UP`.
 - Aprobación mínima 6.0.
-- `NP` se presenta como `NP` y computa 0.0.
-- `PENDIENTE` nunca equivale a NP y bloquea publicación normal.
-- Publicación por asignación + parcial en una transacción todo/nada.
+- `NP` se muestra como `NP` y computa 0.0; `PENDIENTE` es distinto y bloquea publicación normal.
+- Publicación por asignación + parcial, transaccional e idempotente.
 - Corrección docente hasta 72 horas desde `published_at` de servidor.
-- Después de 72 horas: solicitud y resolución de Control Escolar con motivo.
-- Una sola evaluación extraordinaria por inscripción-materia; no es P4.
-- El ordinario se conserva aunque exista extraordinario.
+- Después de 72 horas: solicitud y resolución por Control Escolar con motivo.
+- Una sola oportunidad extraordinaria por inscripción-materia; no es P4 y conserva el ordinario.
 
 ## Seguridad
 
-La aplicación usa `DENY BY DEFAULT`. Los estudiantes solo ven su información publicada; los docentes se autorizan desde la asignación vigente y nunca desde IDs enviados por navegador. Las mutaciones académicas críticas se realizan mediante RPC de PostgreSQL auditables; las tablas sensibles no otorgan DML directo a `authenticated`.
+La aplicación usa **DENY BY DEFAULT**. Alumno y Docente se derivan desde `auth.uid()`; las autorizaciones no confían en IDs enviados por navegador. Las mutaciones críticas se realizan por RPC con autorización interna, auditoría y RLS. PDFs, firma y sello viven en buckets privados; la verificación QR pública devuelve únicamente metadatos mínimos.
 
-Nunca expongas `SUPABASE_SERVICE_ROLE_KEY` como `NEXT_PUBLIC_*`.
-
-
-## Evidencia de base de datos real — RC4
-
-La RC4 fue validada contra un proyecto Supabase dedicado y limpio (`hwytxddwuffbcingovlg`):
-
-- esquema/contratos pgTAP base: **21/21 PASS** y bootstrap `service_role` validado;
-- RLS adversarial: suite de **22 tests** reejecutada; adicionalmente, revocación por perfil inactivo **6/6 PASS**;
-- workflow académico/documental E2E en PostgreSQL: **37/37 PASS**;
-- seed de demostración: **192 calificaciones / 6 publicaciones / 0 publicaciones sin contexto** dentro de transacción rollback;
-- buckets `academic-documents` e `institution-private`: **privados** y con políticas verificadas.
-
-Las pruebas runtime de PostgreSQL se ejecutaron contra Supabase real y se revirtieron al finalizar, por lo que el proyecto validado permanece sin datos académicos de prueba persistentes. Las migraciones remotas llegan a `001`–`026`. El build Next.js/Vitest/Playwright completo sigue sujeto a un entorno que pueda descargar dependencias npm.
-
-## Bootstrap inicial de SUPERADMIN
-
-El primer Superadmin se crea una sola vez con `npm run bootstrap:superadmin`. Requiere `SUPABASE_SERVICE_ROLE_KEY` únicamente en servidor/terminal, `BOOTSTRAP_SUPERADMIN_EMAIL` y `BOOTSTRAP_SUPERADMIN_NAME`; la contraseña puede suministrarse por entorno o generarse criptográficamente. La RPC correspondiente rechaza `anon` y `authenticated`, y el script elimina el usuario Auth si el enlace transaccional de perfil/rol falla.
-
-## Boletas oficiales
-
-La emisión oficial exige en `institution_settings`:
-
-- `director_name`;
-- `director_signature_storage_path` en bucket privado `institution-private`;
-- `institutional_seal_storage_path` en el mismo bucket.
-
-Sin firma y sello reales, el sistema **bloquea** la emisión oficial. No fabrica activos institucionales.
+Antes de usar datos reales deben configurarse en Supabase/Vercel las variables server-only, deshabilitar signup público, activar protección de contraseñas filtradas, definir SITE_URL/redirects, cargar firma/sello reales autorizados y obtener autorización expresa institucional para producción.
 
 ## Documentación
 

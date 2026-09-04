@@ -1,68 +1,59 @@
-# Release checklist — Sistema Académico Digital CBTA 241 — RC5
+# Release checklist — Sistema Académico Digital CBTA 241 — RC5 certificado
 
 ## Código
 
-- [ ] `package-lock.json` resuelto y versionado.
-- [ ] `npm ci`.
-- [ ] `npm run lint` con dependencias reales.
-- [ ] `npm run typecheck` semántico.
-- [ ] `npm run test` (Vitest instalado).
-- [x] `npm run verify:domain` — 9/9.
-- [x] `npm run test:syntax` — 96 TS/TSX / 0 errores.
-- [x] `npm run test:security` — PASS.
-- [x] `npm run test:sql` — 40/40.
-- [x] `npm run test:project` — 14/14.
-- [x] `npm run test:a11y:static` — PASS.
-- [ ] `npm run build`.
-- [x] Gate anti-skip `test:e2e:required` implementado; actualmente bloquea correctamente por falta de credenciales reales.
-- [ ] `npm run qa:release` completo.
+- [x] `package-lock.json` versionado.
+- [x] `npm ci`.
+- [x] audit npm de producción — 0 vulnerabilidades.
+- [x] ESLint.
+- [x] TypeScript `tsc --noEmit`.
+- [x] dominio.
+- [x] Vitest — 14/14.
+- [x] seguridad estática.
+- [x] contratos SQL — 40/40.
+- [x] integridad — 14/14.
+- [x] accesibilidad estática.
+- [x] `next build` — 57 rutas.
+- [x] generación PDF boleta/parcial con QR y paginación en tests.
 
 ## PostgreSQL / Supabase
 
-- [x] Migraciones `001`–`027` aplicadas a proyecto dedicado.
-- [x] pgTAP schema base — 21/21.
-- [x] Contrato bootstrap `service_role` — 8/8 PASS; exige Auth confirmado y email exacto.
-- [x] RLS adversarial — 22-test suite reejecutada hasta test 22 OK.
-- [x] Revocación RLS por perfil inactivo — 6/6.
-- [x] Workflow académico/documental — 37/37.
-- [x] Seed compatible con integridad estricta — validado en rollback.
-- [x] Storage `academic-documents` privado.
-- [x] Storage `institution-private` privado.
-- [x] FK compuesta publicación con índice de cobertura.
-- [ ] Deshabilitar signup público de Auth en el proyecto remoto antes de producción (configuración Dashboard/Management API).
-- [ ] Backup + restore en entorno aislado.
+- [x] migraciones `001`–`027`.
+- [x] schema pgTAP base — 21/21.
+- [x] RLS adversarial — 22/22.
+- [x] revocación por perfil inactivo — 6/6.
+- [x] bootstrap Superadmin — 8/8.
+- [x] workflow académico/documental — 37/37.
+- [x] seed estricto.
+- [x] Storage académico privado.
+- [x] Storage institucional privado.
+- [x] índice FK compuesta de publicación.
 
-## Bootstrap y Auth
+## Auth / navegador
 
-- [x] Script `npm run bootstrap:superadmin` implementado.
-- [x] RPC del primer Superadmin restringida exclusivamente a `service_role`.
-- [x] Cleanup automático del Auth user si falla el enlace DB.
-- [ ] Configurar `SUPABASE_SERVICE_ROLE_KEY` solo en runtime servidor/CI para altas y bajas Auth; nunca en cliente ni Git.
-- [x] Crear primer Superadmin real y enlazarlo a perfil `SUPERADMIN` auditado.
-- [ ] Crear cuentas E2E aisladas por rol.
+- [x] cuentas Auth efímeras aisladas para los cuatro roles.
+- [x] E2E Alumno desktop + Android.
+- [x] E2E Docente desktop + Android.
+- [x] E2E Control Escolar desktop + Android.
+- [x] E2E Superadmin desktop + Android.
+- [x] E2E público desktop + Android.
 
-## E2E web
+## Continuidad
 
-- [ ] Alumno: Auth real → calificaciones publicadas → documentos propios.
-- [ ] Docente: Auth real → captura → publicación → corrección → exportación XLSX.
-- [ ] Control Escolar: periodo → extraordinario → cierre → boleta.
-- [ ] Superadmin: usuarios/roles → auditoría → configuración institucional.
-- [x] Aislamiento PostgreSQL Alumno A→B y Docente A→Asignación B.
-- [x] JWT simulado de cuenta inactiva pierde identidad RLS inmediatamente.
-- [ ] Aislamiento repetido desde navegador/API con sesiones Auth reales.
+- [x] backup lógico de datos de aplicación.
+- [x] reconstrucción desde cero mediante migraciones.
+- [x] restore y comparación de conteos.
+- [x] RLS + pgTAP después del restore.
 
-## Documentos oficiales
+## Operación de producción con datos reales
 
-- [ ] Director configurado.
-- [ ] Firma real privada autorizada.
-- [ ] Sello real privado autorizado.
-- [ ] PDF oficial visualmente validado con datos de prueba.
-- [x] Workflow QR VIGENTE/SUSTITUIDO/REVOCADO validado.
+- [ ] deshabilitar signup público de Auth en el proyecto objetivo.
+- [ ] activar Leaked Password Protection en Auth.
+- [ ] configurar SITE_URL y redirects definitivos.
+- [ ] configurar variables Vercel/hosting, incluida `SUPABASE_SERVICE_ROLE_KEY` solo server-side.
+- [ ] director configurado.
+- [ ] firma real privada autorizada.
+- [ ] sello real privado autorizado.
+- [ ] autorización expresa institucional para datos reales/publicación.
 
-## Producción
-
-- [ ] CI verde.
-- [ ] Variables Vercel/Supabase configuradas sin secretos públicos.
-- [ ] Build/E2E web completos.
-- [ ] Backup/restore aprobado.
-- [ ] Autorización expresa para publicar con datos reales.
+Los elementos pendientes de esta última sección son controles operativos externos. El código y su entorno de prueba están certificados para ejecución; no se deben sustituir esos controles con valores inventados.

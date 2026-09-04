@@ -16,7 +16,7 @@
     "test:e2e": "playwright test",
     "test:security": "node scripts/security-audit.mjs",
     "test:sql": "node scripts/sql-contract-audit.mjs",
-    "qa": "npm run lint && npm run typecheck && npm run test && npm run test:security && npm run test:sql && npm run test:project && npm run test:a11y:static && npm run build",
+    "qa": "npm run lint && npm run typecheck && npm run verify:domain && npm run test && npm run test:security && npm run test:sql && npm run test:project && npm run test:a11y:static && npm run build",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",

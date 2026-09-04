@@ -1,54 +1,53 @@
-# QA Report — RC5
+# QA Report — Certificación ejecutable RC5
 
-Fecha: 2026-09-03
+Fecha: 2026-09-04
 
-## Código sin dependencias externas
+## Resultado global
 
-- dominio: **9/9 PASS**;
-- sintaxis TypeScript/TSX: **96 archivos / 0 errores**;
-- seguridad estática: **PASS**, sin CRÍTICO/ALTO pendiente;
-- contratos SQL estáticos: **40/40 PASS**;
-- integridad de proyecto: **14/14 PASS**;
-- accesibilidad estática: **PASS**, 81 controles con nombre accesible y 4 imágenes con `alt`;
-- QA visual estructural existente: **PASS** en 390×844, 768×1024 y 1440×1000, sin overflow horizontal.
+**PASS técnico para ejecución.** La aplicación fue instalada, compilada, probada con Auth multirol, PostgreSQL/RLS, navegador desktop/Android y recuperación de datos.
 
-## Supabase/PostgreSQL real
+## Aplicación
 
-Proyecto dedicado: `hwytxddwuffbcingovlg`.
+- `npm ci`: PASS.
+- `npm audit --omit=dev --audit-level=high`: PASS, **0 vulnerabilidades de producción**.
+- ESLint: PASS.
+- TypeScript `tsc --noEmit`: PASS.
+- Dominio: PASS.
+- Vitest: **14/14 PASS**.
+- Seguridad estática: PASS, sin CRÍTICO/ALTO.
+- Contratos SQL estáticos: **40/40 PASS**.
+- Integridad: **14/14 PASS**.
+- Accesibilidad estática: PASS.
+- `next build`: PASS; 57 rutas.
+- PDFs: boleta semestral y reporte parcial generados y parseados en tests, incluyendo paginación, QR y activos de firma/sello de prueba.
+
+## Supabase/PostgreSQL
+
+Proyecto dedicado remoto: `hwytxddwuffbcingovlg`.
 
 - migraciones `001`–`027`: aplicadas;
-- pgTAP disponible;
-- esquema base: **21/21 PASS**;
-- bootstrap SUPERADMIN endurecido: **8/8 PASS** (service role, email confirmado, email exacto, auditoría, unicidad y autoprotección);
-- RLS adversarial base: suite de 22 tests reejecutada, último test **22 OK**;
-- revocación de acceso con perfil inactivo: **6/6 PASS**;
-- workflow académico/documental: **37/37 PASS** validado en RC3;
-- seed: PASS dentro de rollback (32 alumnos, 6 materias, 192 calificaciones, 6 publication headers, 12 NP, 0 PUBLISHED sin publication context);
-- buckets `academic-documents` y `institution-private`: privados;
-- tipos TypeScript generables desde el esquema remoto: PASS;
-- Performance Advisor: `unindexed_foreign_keys` sobre la FK compuesta de publicación fue corregido.
+- schema base: **21/21 PASS**;
+- RLS adversarial: **22/22 PASS**;
+- revocación por perfil inactivo: **6/6 PASS**;
+- bootstrap Superadmin: **8/8 PASS**;
+- workflow académico/documental: **37/37 PASS**;
+- seed estricto: PASS en transacción/entorno aislado;
+- buckets `academic-documents` e `institution-private`: privados;
+- FK compuesta de publicación con índice de cobertura.
 
+## Auth + E2E
 
-## Auth institucional RC5
+En CI se levantó Supabase local limpio, se crearon cuatro identidades Auth efímeras (Alumno, Docente, Control Escolar, Superadmin) con contraseñas aleatorias y se ejecutaron journeys autenticados en Chromium desktop y Android. Resultado: **PASS**. Las pruebas públicas también pasaron en ambos perfiles de dispositivo.
 
-Se verificó una identidad Auth real confirmada y enlazada como `SUPERADMIN`. Bajo contexto `authenticated`, `auth.uid()` resuelve al usuario institucional, `current_primary_role()` devuelve `SUPERADMIN` y las políticas RLS permiten únicamente el alcance administrativo esperado. Las pruebas transaccionales confirmaron que la cuenta no puede auto-desactivarse ni retirarse a sí misma el rol SUPERADMIN.
+## Recuperación
 
-## Intento de typecheck sin dependencias
+Backup lógico de datos de aplicación → eliminación del origen → reconstrucción por migraciones → restore → comparación de conteos → comprobación RLS → pgTAP: **PASS**.
 
-Existe `tsc` global, pero `tsc --noEmit` sobre toda la aplicación no se contabiliza como gate válido porque el sandbox carece de `node_modules`; los errores resultantes son principalmente módulos/tipos no resueltos (`next`, `react`, `@supabase/*`, `@playwright/test`, `vitest`, etc.). Por eso el gate semántico se mantiene pendiente y no se maquilla como PASS.
+## Advisors finales
 
-## Gates pendientes
+- Seguridad: WARN esperados para RPC `SECURITY DEFINER` intencionales y un WARN operativo por protección de contraseñas filtradas deshabilitada.
+- Performance: solo INFO `unused_index` debido a base sin carga académica persistente; no se eliminan preventivamente.
 
-- `package-lock.json` generado con resolución real npm;
-- `npm ci`;
-- ESLint instalado;
-- `tsc --noEmit` con dependencias;
-- Vitest del proyecto;
-- `next build` verificable;
-- Playwright web autenticado; `test:e2e:required` ya impide que credenciales ausentes conviertan el gate en falso PASS;
-- Auth real permanente para DOCENTE, CONTROL_ESCOLAR y ALUMNO de prueba; SUPERADMIN institucional real ya está creado y enlazado;
-- backup→restore.
+## Condiciones externas para producción real
 
-## Estado
-
-Backend académico y autorización RLS: **validación real fuerte**. Frontend: implementación RC con gates estáticos aprobados; certificación ejecutable completa todavía pendiente.
+No son defectos del ejecutable, pero deben completarse antes de usar datos reales: deshabilitar signup público, activar leaked-password protection, configurar SITE_URL/redirects, variables server-only del hosting, director/firma/sello reales autorizados y autorización institucional expresa.

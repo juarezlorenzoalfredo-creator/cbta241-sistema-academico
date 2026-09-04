@@ -1,69 +1,53 @@
-# Auditoría técnica — Release Candidate 1.0.0-rc.5
+# Auditoría técnica final — Sistema Académico Digital CBTA 241 — RC5
 
-Fecha: 2026-09-03
+Fecha: 2026-09-04
 
-## CRÍTICO
+## Conclusión técnica
 
-Ningún hallazgo crítico pendiente en los gates ejecutados.
+La aplicación alcanzó **certificación ejecutable** después de completar los gates que anteriormente estaban pendientes. No hay hallazgos CRÍTICOS ni ALTOS abiertos en el código probado.
 
-### Hallazgo crítico cerrado en RC4
+## Evidencia
 
-**Revocación incompleta de acceso con JWT aún válido.** `current_student_id()` y `current_teacher_id()` validaban el estado académico de alumno/docente, pero no exigían que `profiles.is_active` siguiera activo. Una cuenta desactivada podía conservar visibilidad RLS mientras su JWT previo permaneciera criptográficamente válido. Se corrigió en migración `025_inactive_profile_rls_revocation.sql` y se verificó en Supabase real con seis aserciones: identidades activas visibles, identidades inactivas nulas y lectura académica anulada para alumno y docente.
+- instalación reproducible `npm ci`: PASS;
+- audit de dependencias de producción: **0 vulnerabilidades**;
+- lint: PASS;
+- TypeScript strict: PASS;
+- dominio/unit: **14/14 PASS**;
+- PDF oficial de prueba: PASS para boleta y reporte parcial con QR, firma/sello de prueba y paginación;
+- seguridad estática: PASS;
+- contratos SQL: **40/40 PASS**;
+- integridad: **14/14 PASS**;
+- accesibilidad estática: PASS;
+- `next build`: PASS, 57 rutas;
+- Supabase limpio con migraciones `001`–`027` + seed + pgTAP: PASS;
+- E2E Auth de cuatro roles desktop/Android: PASS;
+- E2E público desktop/Android: PASS;
+- backup → rebuild → restore → conteos → RLS/pgTAP: PASS.
 
-## ALTO
+La ejecución integral de GitHub Actions `33876602498` cerró los cuatro jobs críticos (`app`, `database-auth`, `backup-restore`, `e2e-public`) en `success`.
 
-## Hallazgo alto cerrado en RC5
+## Hallazgos cerrados durante el desarrollo
 
-**Confianza excesiva en parámetros del bootstrap inicial.** La RPC original verificaba la existencia del UUID Auth, pero aceptaba el correo recibido como parámetro sin exigir que coincidiera con `auth.users.email` ni que el correo estuviera confirmado. La migración `027_real_auth_superadmin_binding_guard.sql` ahora exige ambas condiciones antes de crear el perfil o el rol. La suite pgTAP correspondiente pasó **8/8**.
+- revocación incompleta de acceso con JWT residual;
+- bootstrap inicial sin enlace Auth suficientemente fuerte;
+- continuidad del último Superadmin;
+- grants/DML implícitos;
+- exposición accidental de funciones;
+- integridad publicación-calificación;
+- clocks de lifecycle en la misma transacción;
+- casteo enum extraordinario;
+- FK compuesta sin índice;
+- seed con publicaciones sin contexto;
+- dependencias vulnerables/transitivas;
+- CI que podía omitir E2E autenticado;
+- ensayo de restore inicialmente contaminado por objetos de Storage; corregido limitando el backup lógico a datos de aplicación y reconstruyendo infraestructura desde migraciones.
 
+## Advisors / riesgos residuales
 
-Ningún hallazgo alto pendiente en los controles ejecutados.
+Los WARN de Supabase para RPC `SECURITY DEFINER` son esperados por diseño: las funciones mutadoras ejecutables por `authenticated` comprueban rol/asignación internamente y `anon` no posee DML de tablas. `verify_academic_document` es deliberadamente pública y minimizada.
 
-### Hallazgos altos/operativos cerrados RC4
+Permanece un WARN **operativo** de Auth: Leaked Password Protection está deshabilitada en el proyecto remoto. Debe activarse antes de producción. Los avisos `unused_index` son INFO y se explican por la ausencia deliberada de carga académica persistente.
 
-1. El primer Superadmin carecía de un bootstrap transaccional y auditable. Se agregó una RPC `service_role`-only y un script que elimina el usuario Auth automáticamente si falla el enlace de base de datos.
-2. Se añadió defensa para impedir desactivar o retirar el último Superadmin activo.
-3. Supabase Performance Advisor detectó una FK compuesta sin índice de cobertura en `grades`. Se agregó `grades_publication_context_idx`; el aviso `unindexed_foreign_keys` desapareció.
-4. Se alineó la prioridad de `homeForRoles()` con `current_primary_role()` (`SUPERADMIN → CONTROL_ESCOLAR → DOCENTE → ALUMNO`).
+## Distinción ejecución / producción
 
-## Hallazgos runtime cerrados en RC3 y conservados
-
-- grants DML implícitos de Supabase;
-- exposición accidental de `SECURITY DEFINER`;
-- timestamps iguales en lifecycle dentro de una transacción;
-- casteo enum en publicación extraordinaria;
-- integridad entre `grades` y `grade_publications`;
-- seed antiguo con publicaciones sin contexto.
-
-## Evidencia RC4
-
-- Dominio: **9/9 PASS**.
-- TS/TSX parseable: **96 archivos / 0 errores sintácticos**.
-- Seguridad estática: **PASS**.
-- Contratos SQL estáticos: **40/40 PASS**.
-- Integridad de proyecto: **14/14 PASS**.
-- Accesibilidad estática: **PASS**.
-- PostgreSQL schema contracts base: **21/21 PASS**; bootstrap ampliado validado hasta aserción 24.
-- PostgreSQL RLS adversarial: suite reejecutada tras RC4 y llegó a **test 22 OK**; prueba específica de revocación por perfil inactivo **6/6 PASS**.
-- PostgreSQL workflow académico/documental: **37/37 PASS** de RC3; las migraciones RC4 no modifican sus reglas académicas.
-- Storage privado/policies: **PASS**.
-- Proyecto remoto limpio después de pruebas transaccionales: **PASS**.
-- Performance Advisor: FK compuesta sin índice **RESUELTA**.
-
-## Dependencias
-
-RC4 fija `next` y `eslint-config-next` en **16.3.4**, versión estable confirmada en el registro npm al preparar esta RC.
-
-## Bloqueos de certificación final
-
-1. Este sandbox continúa sin resolver `registry.npmjs.org`, por lo que no existe todavía evidencia local de `npm ci`, lockfile final, `next build`, ESLint instalado, Vitest instalado ni Playwright real.
-2. El SUPERADMIN institucional real ya existe y está enlazado. Faltan identidades Auth de prueba para DOCENTE, CONTROL_ESCOLAR y ALUMNO para completar E2E multirol sin utilizar datos reales.
-3. Falta E2E web autenticado por los cuatro roles.
-4. Falta backup→restore en un entorno aislado.
-5. Director, firma y sello reales siguen siendo requisitos institucionales antes de emitir documentos oficiales.
-
-## Conclusión
-
-La RC5 incorpora una identidad Auth institucional real confirmada y enlazada como SUPERADMIN, refuerza el bootstrap para exigir identidad confirmada y email exacto, y conserva el corte inmediato de identidad RLS al desactivar cuentas. El backend está validado sobre Supabase real; la aplicación aún no se etiqueta como producción certificada hasta completar build, E2E multirol y recuperación.
-
-- Bootstrap SUPERADMIN runtime: **6/6 PASS** en transacción revertida; creación inicial, rol, auditoría, unicidad y auto-protección verificadas.
+La aplicación está técnicamente lista para ejecutarse. Esto no autoriza todavía carga de datos reales. Producción requiere configuración externa legítima: signup público deshabilitado, leaked-password protection activa, SITE_URL/redirects definitivos, secretos server-only en hosting, director/firma/sello autorizados y autorización institucional expresa.

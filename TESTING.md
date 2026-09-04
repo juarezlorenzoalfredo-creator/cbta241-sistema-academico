@@ -1,44 +1,53 @@
 # Testing y gates
 
-## Unit / dominio
+## Dominio y unitarios
 
-`tests/grading.test.ts` cubre HALF_UP, NP, PENDIENTE, provisionales, riesgo, aprobado/reprobado, extraordinario, 72 h, periodos y publicación. `npm run verify:domain`: **9/9 PASS**.
+`tests/grading.test.ts` cubre HALF_UP, NP, PENDIENTE, provisionales, riesgo, aprobado/reprobado, extraordinario, ventana de 72 horas, periodos y publicación. `tests/documents.test.ts` genera PDFs reales de boleta semestral y reporte parcial con activos PNG de prueba, QR y paginación.
 
-## Gates estáticos RC4
+Última certificación ejecutada: **14/14 tests Vitest PASS**.
 
-- `npm run test:syntax`: **PASS 96 TS/TSX / 0 errores sintácticos**.
-- `npm run test:security`: **PASS**, sin CRÍTICO/ALTO estático pendiente.
-- `npm run test:sql`: **31/31 PASS**.
-- `npm run test:project`: **14/14 PASS**.
-- `npm run test:a11y:static`: **PASS** (81 controles nombrados; 4 imágenes con `alt`).
-- `npm run qa:static`: **PASS**.
+## Aplicación
 
-## PostgreSQL / RLS real
+En GitHub Actions se verificó con dependencias reales:
 
-Se instaló pgTAP y se ejecutaron las suites sobre el proyecto Supabase dedicado `hwytxddwuffbcingovlg`:
+- `npm ci` — PASS;
+- `npm audit --omit=dev --audit-level=high` — **0 vulnerabilidades de producción**;
+- ESLint — PASS;
+- `tsc --noEmit` — PASS;
+- `npm run verify:domain` — PASS;
+- Vitest — **14/14 PASS**;
+- seguridad estática — PASS, sin CRÍTICO/ALTO;
+- contratos SQL estáticos — **40/40 PASS**;
+- integridad de proyecto — **14/14 PASS**;
+- accesibilidad estática — PASS;
+- `next build` — PASS, 57 rutas.
 
-- contratos de esquema: **21/21 PASS**;
+## PostgreSQL / RLS
+
+La suite reproducible levanta Supabase local desde cero, aplica migraciones `001`–`027`, ejecuta seed y corre pgTAP. Además, el proyecto Supabase dedicado fue validado previamente con:
+
+- contratos de esquema base: **21/21 PASS**;
 - RLS adversarial: **22/22 PASS**;
-- workflow académico/documental integral: **37/37 PASS**.
+- revocación por perfil inactivo: **6/6 PASS**;
+- bootstrap Superadmin: **8/8 PASS**;
+- workflow académico/documental: **37/37 PASS**.
 
-El workflow integral cubre captura P1, publicación, idempotencia, corrección ≤72 h, rechazo de corrección directa >72 h, solicitud y aprobación de Control Escolar, P2=NP, P3, promedio ordinario, cierre de parciales, bloqueo de cierre con reprobación sin resolver, extraordinario único, captura/publicación extraordinaria, cierre semestral y documentos QR versionados/revocados. Todas las fixtures se ejecutaron en transacción con `ROLLBACK`.
+## E2E navegador
 
-## Seed
+La certificación aprovisiona cuatro identidades Auth efímeras con contraseñas criptográficamente aleatorias y ejecuta Playwright en desktop Chromium y Android:
 
-El seed de regresión fue probado en PostgreSQL real dentro de una transacción revertida: **32 estudiantes, 6 materias, 6 publicaciones, 192 calificaciones, 12 NP y 0 filas PUBLISHED sin contexto de publicación**.
+- Alumno entra a su portal y calificaciones publicadas;
+- Docente entra a captura y exportación XLSX limitada a asignaciones visibles;
+- Control Escolar entra a operación y documentos;
+- Superadmin entra a seguridad y auditoría;
+- rutas públicas, verificación inválida y redirección anónima se validan también en ambos perfiles de dispositivo.
 
-## E2E web
+Resultado: **PASS**.
 
-Playwright contempla desktop Chromium y Pixel 7. Las pruebas autenticadas requieren cuentas Supabase Auth aisladas y dependencias npm instaladas. Este gate todavía no se marca PASS.
+## Backup / restore
+
+El gate crea respaldo lógico de datos de `public`, destruye el origen local, reconstruye una base limpia mediante las 27 migraciones, restaura datos, compara conteos críticos, comprueba RLS y vuelve a ejecutar pgTAP. Resultado: **PASS**.
 
 ## Gate de release
 
-No publicar si falla lint, typecheck, unit, security, SQL contracts, project audit, accesibilidad, build, E2E crítico o RLS/pgTAP. La lista completa está en `docs/RELEASE_CHECKLIST.md`.
-
-`npm run qa:static` no sustituye `npm run qa`; `npm run test:syntax` tampoco sustituye el typecheck semántico completo.
-
-## Gate E2E obligatorio de release
-
-`npm run test:e2e` permite omitir journeys autenticados si no hay credenciales, útil durante desarrollo. La liberación usa `npm run test:e2e:required`, que primero ejecuta `scripts/assert-e2e-env.mjs` y falla si falta cualquier cuenta Alumno/Docente/Control Escolar/Superadmin. `npm run qa:release` combina gates de aplicación, pgTAP y este E2E obligatorio.
-
-- Bootstrap inicial SUPERADMIN y continuidad: **6/6 PASS** en Supabase real.
+No considerar certificable un commit si falla instalación reproducible, audit de dependencias, lint, typecheck, unit, seguridad, SQL, integridad, accesibilidad, build, pgTAP/RLS, E2E crítico o backup/restore.

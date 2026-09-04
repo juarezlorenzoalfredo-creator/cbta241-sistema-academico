@@ -1,52 +1,44 @@
 # Despliegue
 
-## Prerrequisito de release
+## Estado de release
 
-Generar y **versionar `package-lock.json`** en un entorno con acceso a npm antes de la promoción final. Después usar `npm ci`, no una resolución nueva de dependencias, para CI y producción.
+`package-lock.json` está versionado y `npm ci` fue validado en CI. La aplicación puede ejecutarse localmente y en un entorno de staging con las variables correctas.
 
 ## Supabase
 
-1. Crear proyecto no productivo/staging.
-2. Vincular Supabase CLI.
-3. Ejecutar `supabase db reset` en local limpio o aplicar migraciones versionadas en staging.
-4. Ejecutar `supabase test db` y revisar pgTAP/RLS.
-5. Verificar buckets `academic-documents` e `institution-private` como privados.
-6. Configurar URL del sitio/redirects de Auth.
-7. Antes de cualquier otra cuenta, ejecutar una sola vez `npm run bootstrap:superadmin` con la Service Role en una terminal segura. Después aprovisionar cuentas mediante la interfaz Superadmin.
-8. Deshabilitar signup público de Auth para producción y configurar redirects/SITE_URL.
-9. Subir firma/sello reales a `institution-private` y registrar sus rutas mediante la interfaz Superadmin.
-10. Ejecutar prueba de backup/restore conforme a `docs/BACKUP_RESTORE.md`.
+1. Usar el proyecto dedicado o un proyecto de staging limpio.
+2. Aplicar únicamente migraciones versionadas `001`–`027`.
+3. Ejecutar `supabase test db` y revisar pgTAP/RLS.
+4. Confirmar privados los buckets `academic-documents` e `institution-private`.
+5. Configurar SITE_URL y redirects Auth.
+6. Deshabilitar signup público antes de producción.
+7. Activar protección de contraseñas filtradas en Auth antes de producción.
+8. Ejecutar una sola vez `npm run bootstrap:superadmin` cuando no exista ningún Superadmin.
+9. Cargar firma y sello reales autorizados en `institution-private` y registrar sus rutas desde Superadmin.
+10. Ejecutar ensayo de backup/restore conforme a `docs/BACKUP_RESTORE.md`.
 
-## Vercel
-
-Variables de runtime web:
+## Variables web / Vercel
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_APP_URL`
 - `INSTITUTION_TIMEZONE`
 - `DOCUMENT_VERIFICATION_SECRET`
+- `SUPABASE_SERVICE_ROLE_KEY` **server-only**
 
-`SUPABASE_SERVICE_ROLE_KEY` no es necesario para el runtime web normal. Se utiliza únicamente por scripts administrativos explícitos como aprovisionamiento de usuarios; si se configura en un entorno automatizado debe permanecer server-only con alcance mínimo.
+La Service Role es necesaria para las operaciones de gestión de identidades Auth disponibles al Superadmin (crear/deshabilitar cuentas) y para scripts administrativos. Nunca debe usar prefijo `NEXT_PUBLIC_*`, imprimirse en logs ni quedar en Git.
 
 ## CI/CD
 
-`.github/workflows/ci.yml` separa:
+`.github/workflows/ci.yml` separa cuatro superficies críticas:
 
-- gates de aplicación;
-- PostgreSQL/pgTAP con Supabase CLI;
-- E2E dependiente de app + database.
+- aplicación: instalación reproducible, audit, lint, typecheck, dominio, unit, seguridad, SQL estático, integridad, accesibilidad y build;
+- database-auth: Supabase local limpio, 27 migraciones, seed, pgTAP, cuatro identidades Auth efímeras y E2E autenticado desktop/Android;
+- backup-restore: respaldo lógico de datos de aplicación, reconstrucción limpia, restore, conteos, RLS y pgTAP;
+- e2e-public: navegación pública desktop/Android.
 
-La rama de producción no debe aceptar una release si alguno de esos jobs críticos está rojo.
+No promover un commit si cualquiera de estos jobs falla.
 
-## Producción
+## Producción con datos reales
 
-No apuntar a datos reales hasta:
-
-- lockfile versionado;
-- migraciones/RLS auditadas en staging;
-- E2E por rol aprobado;
-- firma/sello institucionales autorizados;
-- backup/restore probado;
-- CI verde;
-- autorización expresa de publicación.
+La certificación técnica no constituye autorización para cargar información real. Antes de producción deben completarse los controles operativos externos: Auth signup deshabilitado, protección de contraseñas filtradas activa, variables seguras del hosting, SITE_URL/redirects correctos, director/firma/sello autorizados y autorización expresa institucional.
