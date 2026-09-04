@@ -1,0 +1,39 @@
+name: repair-asset-decode
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - '.github/workflows/repair-asset-decode.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Repair padded Base64 handling and self-remove
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/bootstrap-hydrate-rc5.yml')
+          text = p.read_text()
+          old = "              clean = ''.join(re.findall(r'[A-Za-z0-9+/=]', raw))\n              clean += '=' * ((4 - len(clean) % 4) % 4)"
+          new = "              clean = ''.join(re.findall(r'[A-Za-z0-9+/=]', raw))\n              clean = clean.split('=', 1)[0]\n              clean += '=' * ((4 - len(clean) % 4) % 4)"
+          if old not in text:
+              raise SystemExit('decode patch target not found')
+          p.write_text(text.replace(old, new))
+          PY
+          rm .github/workflows/repair-asset-decode.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/bootstrap-hydrate-rc5.yml .github/workflows/repair-asset-decode.yml
+          git commit -m 'ci: repair padded Base64 asset decoding'
+          git push origin HEAD:develop
