@@ -1,46 +1,40 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 const root = resolve(new URL('..', import.meta.url).pathname);
 const output = join(root, 'docs', 'RELEASE_MANIFEST.json');
-const excludes = new Set([
-  '.git',
-  'node_modules',
-  '.next',
-  '.verified',
-  'coverage',
-  'playwright-report',
-  'test-results',
-  'out'
-]);
+const outputPath = 'docs/RELEASE_MANIFEST.json';
 
-function walk(dir) {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (excludes.has(entry.name)) return [];
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) return walk(full);
-    if (full === output) return [];
-    return [full];
-  });
+function gitText(args) {
+  return execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
 }
 
-const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-const files = walk(root).sort().map((file) => {
-  const content = readFileSync(file);
-  return {
-    path: relative(root, file).replaceAll('\\', '/'),
-    bytes: statSync(file).size,
-    sha256: createHash('sha256').update(content).digest('hex')
-  };
+function gitBytes(args) {
+  return execFileSync('git', args, { cwd: root, encoding: null, maxBuffer: 32 * 1024 * 1024 });
+}
+
+const paths = gitText(['ls-tree', '-r', '--name-only', 'HEAD'])
+  .split('\n')
+  .map((value) => value.trim())
+  .filter(Boolean)
+  .filter((value) => value !== outputPath)
+  .sort();
+
+const fileDigests = paths.map((path) => {
+  const content = gitBytes(['show', `HEAD:${path}`]);
+  return `${createHash('sha256').update(content).digest('hex')}  ${path}`;
 });
 
+const pkg = JSON.parse(gitText(['show', 'HEAD:package.json']));
 const manifest = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   project: 'Sistema Académico Digital CBTA 241',
   version: pkg.version,
-  fileCount: files.length,
-  sourceTreeSha256: createHash('sha256').update(files.map((f) => `${f.sha256}  ${f.path}`).join('\n')).digest('hex'),
+  sourceRule: 'Git tracked files from HEAD, sorted by path, excluding docs/RELEASE_MANIFEST.json; SHA-256 per blob then SHA-256 over "<blobSha256>  <path>" lines.',
+  sourceFileCount: paths.length,
+  sourceTreeSha256: createHash('sha256').update(fileDigests.join('\n')).digest('hex'),
   verification: {
     npmCi: 'PASS_GITHUB_ACTIONS',
     productionDependencyAudit: 'PASS_0_VULNERABILITIES',
@@ -62,9 +56,10 @@ const manifest = {
     strictSeedRuntime: 'PASS',
     privateStorage: 'PASS',
     migrations: 'PASS_001_TO_027',
-    authenticatedE2E: 'PASS_FOUR_ROLES_DESKTOP_AND_ANDROID',
-    publicE2E: 'PASS_DESKTOP_AND_ANDROID',
-    backupRestore: 'PASS_REBUILD_RESTORE_COUNTS_RLS_PGTAP'
+    authenticatedE2E: 'PASS_FOUR_ROLES_DESKTOP_AND_ANDROID_PRODUCTION_SERVER',
+    publicE2E: 'PASS_DESKTOP_AND_ANDROID_PRODUCTION_SERVER',
+    backupRestore: 'PASS_REBUILD_RESTORE_COUNTS_RLS_PGTAP',
+    supabaseCli: 'PINNED_2.116.0'
   },
   productionExternalControls: {
     publicSignupDisabled: 'REQUIRED_BEFORE_REAL_DATA',
@@ -73,9 +68,9 @@ const manifest = {
     hostingSecrets: 'REQUIRED_BEFORE_REAL_DATA',
     authorizedDirectorSignatureSeal: 'REQUIRED_BEFORE_OFFICIAL_DOCUMENTS',
     institutionalProductionAuthorization: 'REQUIRED_BEFORE_REAL_DATA'
-  },
-  files
+  }
 };
+
 writeFileSync(output, `${JSON.stringify(manifest, null, 2)}\n`);
-console.log(`Release manifest written: ${relative(root, output)} (${files.length} files)`);
+console.log(`Release manifest written: ${outputPath} (${paths.length} tracked source files)`);
 console.log(`Source tree SHA-256: ${manifest.sourceTreeSha256}`);
