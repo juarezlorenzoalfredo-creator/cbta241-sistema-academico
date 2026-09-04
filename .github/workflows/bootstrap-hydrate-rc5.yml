@@ -64,6 +64,36 @@ jobs:
           test -f package.json
           test -f .github/workflows/ci.yml
 
+      - name: Apply server-time lint hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p lib/server
+          cat > lib/server/time.ts <<'EOF'
+          import 'server-only';
+
+          export function currentServerEpochMs(): number {
+            return Date.now();
+          }
+          EOF
+          python - <<'PY'
+          from pathlib import Path
+
+          audit = Path('app/admin/auditoria/page.tsx')
+          text = audit.read_text()
+          text = text.replace("import { createSupabaseServerClient } from '@/lib/supabase/server';", "import { createSupabaseServerClient } from '@/lib/supabase/server';\nimport { currentServerEpochMs } from '@/lib/server/time';")
+          text = text.replace("const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();", "const since = new Date(currentServerEpochMs() - 24 * 60 * 60 * 1000).toISOString();")
+          audit.write_text(text)
+
+          corrections = Path('app/docente/correcciones/page.tsx')
+          text = corrections.read_text()
+          text = text.replace("import { createSupabaseServerClient } from '@/lib/supabase/server';", "import { createSupabaseServerClient } from '@/lib/supabase/server';\nimport { currentServerEpochMs } from '@/lib/server/time';")
+          text = text.replace("const now = Date.now();", "const now = currentServerEpochMs();")
+          corrections.write_text(text)
+          PY
+          grep -q 'currentServerEpochMs' app/admin/auditoria/page.tsx
+          grep -q 'currentServerEpochMs' app/docente/correcciones/page.tsx
+
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
@@ -104,6 +134,9 @@ jobs:
 
       - name: Public E2E on desktop Chromium
         run: npx playwright test e2e/public.spec.ts --project=desktop-chromium
+
+      - name: Regenerate release manifest after verified changes
+        run: npm run release:manifest
 
       - name: Commit hydrated RC5 only after all gates pass
         shell: bash
