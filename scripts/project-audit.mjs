@@ -7,6 +7,7 @@ const checks = [];
 
 function pass(name) { checks.push({ name, status: 'PASS' }); }
 function fail(name, detail) { checks.push({ name, status: 'FAIL', detail }); failures.push(`${name}: ${detail}`); }
+function record(name, ok, detail = 'Contract failed') { if (ok) pass(name); else fail(name, detail); }
 function walk(dir) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -29,7 +30,7 @@ const sourceFiles = ['app', 'components', 'features', 'lib', 'validation', 'test
   .flatMap((dir) => walk(join(root, dir)))
   .filter((file) => ['.ts', '.tsx'].includes(extname(file)));
 
-let unresolved = [];
+const unresolved = [];
 for (const file of sourceFiles) {
   const body = readFileSync(file, 'utf8');
   const importRegex = /(?:from\s+|import\s*\()(['"])([^'"]+)\1/g;
@@ -40,23 +41,22 @@ for (const file of sourceFiles) {
     }
   }
 }
-unresolved.length ? fail('Local imports resolve', unresolved.join('; ')) : pass('Local imports resolve');
+record('Local imports resolve', unresolved.length === 0, unresolved.join('; '));
 
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const scriptFileRefs = Object.entries(pkg.scripts ?? {})
   .flatMap(([name, command]) => [...String(command).matchAll(/node\s+(scripts\/[^\s;&]+)/g)].map((m) => [name, m[1]]));
 const missingScripts = scriptFileRefs.filter(([, file]) => !existsSync(join(root, file)));
-missingScripts.length ? fail('Package script targets exist', missingScripts.map(([n, f]) => `${n}:${f}`).join(', ')) : pass('Package script targets exist');
+record('Package script targets exist', missingScripts.length === 0, missingScripts.map(([n, f]) => `${n}:${f}`).join(', '));
 
 const migrationDir = join(root, 'supabase', 'migrations');
 const migrations = readdirSync(migrationDir).filter((name) => /^\d{3}_.+\.sql$/.test(name)).sort();
 const numbers = migrations.map((name) => Number(name.slice(0, 3)));
-const sequential = numbers.every((n, i) => n === i + 1);
-sequential ? pass('SQL migrations are sequential') : fail('SQL migrations are sequential', migrations.join(', '));
+record('SQL migrations are sequential', numbers.every((n, i) => n === i + 1), migrations.join(', '));
 
 const requiredDocs = ['README.md', 'ARCHITECTURE.md', 'DATABASE.md', 'SECURITY.md', 'TESTING.md', 'DEPLOYMENT.md', 'CHANGELOG.md', 'docs/QA_REPORT.md', 'docs/FINAL_AUDIT.md', 'docs/RELEASE_CHECKLIST.md', 'docs/BACKUP_RESTORE.md', 'docs/SUPABASE_VALIDATION.md', 'docs/RELEASE_MANIFEST.json'];
 const missingDocs = requiredDocs.filter((file) => !existsSync(join(root, file)) || statSync(join(root, file)).size === 0);
-missingDocs.length ? fail('Required documentation exists', missingDocs.join(', ')) : pass('Required documentation exists');
+record('Required documentation exists', missingDocs.length === 0, missingDocs.join(', '));
 
 const requiredRolePages = [
   'app/alumno/page.tsx','app/alumno/calificaciones/page.tsx','app/alumno/materias/page.tsx','app/alumno/historial/page.tsx','app/alumno/extraordinarios/page.tsx','app/alumno/documentos/page.tsx','app/alumno/notificaciones/page.tsx','app/alumno/perfil/page.tsx',
@@ -64,12 +64,12 @@ const requiredRolePages = [
   'app/control/page.tsx','app/control/alumnos/page.tsx','app/control/docentes/page.tsx','app/control/materias/page.tsx','app/control/grupos/page.tsx','app/control/periodos/page.tsx','app/control/inscripciones/page.tsx','app/control/asignaciones/page.tsx','app/control/evaluaciones/page.tsx','app/control/seguimiento/page.tsx','app/control/publicaciones/page.tsx','app/control/correcciones/page.tsx','app/control/extraordinarios/page.tsx','app/control/documentos/page.tsx','app/control/reportes/page.tsx','app/control/importaciones/page.tsx','app/control/auditoria/page.tsx','app/control/configuracion/page.tsx',
   'app/admin/page.tsx','app/admin/usuarios/page.tsx','app/admin/auditoria/page.tsx','app/admin/seguridad/page.tsx','app/admin/configuracion/page.tsx'
 ];
-const missingRolePages = requiredRolePages.filter((file) => !existsSync(join(root,file)));
-missingRolePages.length ? fail('Required role module pages exist', missingRolePages.join(', ')) : pass('Required role module pages exist');
+const missingRolePages = requiredRolePages.filter((file) => !existsSync(join(root, file)));
+record('Required role module pages exist', missingRolePages.length === 0, missingRolePages.join(', '));
 
 const requiredAssets = ['public/institution/cbta241-logo.png', 'public/institution/icon-192.png', 'public/institution/icon-512.png', 'public/institution/icon-maskable-512.png', 'public/manifest.webmanifest', 'public/sw.js', 'public/offline.html'];
 const missingAssets = requiredAssets.filter((file) => !existsSync(join(root, file)));
-missingAssets.length ? fail('Institution/PWA assets exist', missingAssets.join(', ')) : pass('Institution/PWA assets exist');
+record('Institution/PWA assets exist', missingAssets.length === 0, missingAssets.join(', '));
 
 function pngDimensions(file) {
   const b = readFileSync(file);
@@ -85,11 +85,10 @@ const iconFailures = (manifest.icons ?? []).flatMap((icon) => {
   const actual = pngDimensions(file);
   return actual && actual[0] === Number(match[1]) && actual[1] === Number(match[2]) ? [] : [`${icon.src}:dimension-mismatch`];
 });
-iconFailures.length ? fail('PWA icon dimensions match manifest', iconFailures.join(', ')) : pass('PWA icon dimensions match manifest');
+record('PWA icon dimensions match manifest', iconFailures.length === 0, iconFailures.join(', '));
 
 const allTs = sourceFiles.map((file) => readFileSync(file, 'utf8')).join('\n');
-const explicitAny = /:\s*any\b|<any>|\bas\s+any\b/.test(allTs);
-explicitAny ? fail('No explicit TypeScript any', 'Explicit any type pattern found') : pass('No explicit TypeScript any');
+record('No explicit TypeScript any', !/:\s*any\b|<any>|\bas\s+any\b/.test(allTs), 'Explicit any type pattern found');
 
 const routeChecks = [
   ['app/api/grading/draft/route.ts', /getAuthContext\(\)/, /DOCENTE/, /CONTROL_ESCOLAR/],
@@ -104,7 +103,7 @@ for (const [file, ...patterns] of routeChecks) {
   const body = existsSync(full) ? readFileSync(full, 'utf8') : '';
   if (!existsSync(full) || patterns.some((pattern) => !pattern.test(body))) routeFailures.push(file);
 }
-routeFailures.length ? fail('Sensitive API routes authenticate and role-gate', routeFailures.join(', ')) : pass('Sensitive API routes authenticate and role-gate');
+record('Sensitive API routes authenticate and role-gate', routeFailures.length === 0, routeFailures.join(', '));
 
 const sql = migrations.map((name) => readFileSync(join(migrationDir, name), 'utf8')).join('\n');
 const hardeningContracts = [
@@ -114,7 +113,7 @@ const hardeningContracts = [
   ['Institution settings restricted', /create policy institution_settings_read[\s\S]*current_user_has_role\('CONTROL_ESCOLAR'\)[\s\S]*current_user_has_role\('SUPERADMIN'\)/i],
   ['Student document storage current-only', /academic_documents_storage_student_read[\s\S]*dv\.version=d\.current_version[\s\S]*dv\.state='VIGENTE'/i]
 ];
-for (const [name, pattern] of hardeningContracts) pattern.test(sql) ? pass(name) : fail(name, 'SQL contract not found');
+for (const [name, pattern] of hardeningContracts) record(name, pattern.test(sql), 'SQL contract not found');
 
 console.log('PROJECT AUDIT');
 console.table(checks);

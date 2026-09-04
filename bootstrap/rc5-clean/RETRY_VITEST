@@ -1,1 +1,0 @@
-Vitest now runs only tests/**/*.test.ts and resolves the @ alias.
