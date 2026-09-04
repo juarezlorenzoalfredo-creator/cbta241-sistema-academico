@@ -59,7 +59,7 @@ test.describe('authenticated role journeys', () => {
     await login(page, studentEmail!, studentPassword!);
     await expect(page).toHaveURL(/\/alumno/);
     await page.goto('/alumno/calificaciones');
-    await expect(page.getByText('Mis calificaciones')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Mis calificaciones' })).toBeVisible();
   });
 
   test.skip(!adminEmail || !adminPassword, 'Superadmin E2E credentials not configured');
