@@ -32,19 +32,88 @@ jobs:
       - run: npm run test:a11y:static
       - run: npm run build
 
-  database:
+  database-auth:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - run: supabase start
-      - run: supabase test db
+      - name: Start isolated Supabase and apply every migration + seed
+        run: supabase start
+      - name: Run pgTAP schema, RLS, workflow and Superadmin tests
+        run: supabase test db
+      - name: Export isolated Supabase credentials and generate one-run role passwords
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase status -o env > /tmp/supabase-status.env
+          set -a
+          # shellcheck disable=SC1091
+          source /tmp/supabase-status.env
+          set +a
+
+          LOCAL_URL="${API_URL:-${SUPABASE_URL:-http://127.0.0.1:54321}}"
+          LOCAL_PUBLIC_KEY="${PUBLISHABLE_KEY:-${ANON_KEY:-}}"
+          LOCAL_SERVICE_KEY="${SECRET_KEY:-${SERVICE_ROLE_KEY:-}}"
+
+          test -n "$LOCAL_URL"
+          test -n "$LOCAL_PUBLIC_KEY"
+          test -n "$LOCAL_SERVICE_KEY"
+
+          echo "::add-mask::$LOCAL_SERVICE_KEY"
+          printf 'NEXT_PUBLIC_SUPABASE_URL=%s\n' "$LOCAL_URL" >> "$GITHUB_ENV"
+          printf 'NEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$LOCAL_PUBLIC_KEY" >> "$GITHUB_ENV"
+          printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$LOCAL_SERVICE_KEY" >> "$GITHUB_ENV"
+          printf 'NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000\n' >> "$GITHUB_ENV"
+          printf 'ALLOW_DEMO_USERS=true\n' >> "$GITHUB_ENV"
+
+          make_password() {
+            node -e "console.log(require('node:crypto').randomBytes(24).toString('base64url') + '!aA7')"
+          }
+          STUDENT_PASSWORD="$(make_password)"
+          TEACHER_PASSWORD="$(make_password)"
+          CONTROL_PASSWORD="$(make_password)"
+          SUPERADMIN_PASSWORD="$(make_password)"
+          DOC_SECRET="$(node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))")"
+
+          for value in "$STUDENT_PASSWORD" "$TEACHER_PASSWORD" "$CONTROL_PASSWORD" "$SUPERADMIN_PASSWORD" "$DOC_SECRET"; do
+            echo "::add-mask::$value"
+          done
+
+          {
+            printf 'DOCUMENT_VERIFICATION_SECRET=%s\n' "$DOC_SECRET"
+            printf 'DEMO_STUDENT_PASSWORD=%s\n' "$STUDENT_PASSWORD"
+            printf 'DEMO_TEACHER_PASSWORD=%s\n' "$TEACHER_PASSWORD"
+            printf 'DEMO_CONTROL_PASSWORD=%s\n' "$CONTROL_PASSWORD"
+            printf 'DEMO_SUPERADMIN_PASSWORD=%s\n' "$SUPERADMIN_PASSWORD"
+            printf 'E2E_STUDENT_EMAIL=alumno.demo@cbta241.local\n'
+            printf 'E2E_STUDENT_PASSWORD=%s\n' "$STUDENT_PASSWORD"
+            printf 'E2E_TEACHER_EMAIL=docente.demo@cbta241.local\n'
+            printf 'E2E_TEACHER_PASSWORD=%s\n' "$TEACHER_PASSWORD"
+            printf 'E2E_CONTROL_EMAIL=control.demo@cbta241.local\n'
+            printf 'E2E_CONTROL_PASSWORD=%s\n' "$CONTROL_PASSWORD"
+            printf 'E2E_SUPERADMIN_EMAIL=admin.demo@cbta241.local\n'
+            printf 'E2E_SUPERADMIN_PASSWORD=%s\n' "$SUPERADMIN_PASSWORD"
+          } >> "$GITHUB_ENV"
+      - name: Provision four isolated Auth identities through Supabase Admin API
+        run: node scripts/provision-demo-users.mjs
+      - name: Install Chromium for authenticated browser journeys
+        run: npx playwright install --with-deps chromium
+      - name: Require authenticated E2E for all four roles on desktop and Android
+        run: npx playwright test e2e/authenticated.spec.ts --project=desktop-chromium --project=android
+      - name: Stop isolated Supabase
+        if: always()
+        run: supabase stop --no-backup
 
   e2e-public:
     runs-on: ubuntu-latest
-    needs: [app, database]
+    needs: [app]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -53,45 +122,5 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test e2e/public.spec.ts --project=desktop-chromium
-
-  e2e-authenticated:
-    runs-on: ubuntu-latest
-    needs: [app, database]
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
-      E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
-      E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
-      E2E_TEACHER_EMAIL: ${{ secrets.E2E_TEACHER_EMAIL }}
-      E2E_TEACHER_PASSWORD: ${{ secrets.E2E_TEACHER_PASSWORD }}
-      E2E_CONTROL_EMAIL: ${{ secrets.E2E_CONTROL_EMAIL }}
-      E2E_CONTROL_PASSWORD: ${{ secrets.E2E_CONTROL_PASSWORD }}
-      E2E_SUPERADMIN_EMAIL: ${{ secrets.E2E_SUPERADMIN_EMAIL }}
-      E2E_SUPERADMIN_PASSWORD: ${{ secrets.E2E_SUPERADMIN_PASSWORD }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Detect authenticated E2E configuration
-        id: config
-        shell: bash
-        run: |
-          if [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] && \
-             [ -n "$E2E_STUDENT_EMAIL" ] && [ -n "$E2E_STUDENT_PASSWORD" ] && \
-             [ -n "$E2E_TEACHER_EMAIL" ] && [ -n "$E2E_TEACHER_PASSWORD" ] && \
-             [ -n "$E2E_CONTROL_EMAIL" ] && [ -n "$E2E_CONTROL_PASSWORD" ] && \
-             [ -n "$E2E_SUPERADMIN_EMAIL" ] && [ -n "$E2E_SUPERADMIN_PASSWORD" ]; then
-            echo 'configured=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'configured=false' >> "$GITHUB_OUTPUT"
-            echo 'Authenticated multi-role E2E is not configured; this gate remains pending.'
-          fi
-      - if: steps.config.outputs.configured == 'true'
-        run: npm ci --no-audit --no-fund
-      - if: steps.config.outputs.configured == 'true'
-        run: npx playwright install --with-deps chromium
-      - if: steps.config.outputs.configured == 'true'
-        run: npx playwright test e2e/authenticated.spec.ts --project=desktop-chromium
+      - name: Public journeys on desktop and Android
+        run: npx playwright test e2e/public.spec.ts --project=desktop-chromium --project=android
