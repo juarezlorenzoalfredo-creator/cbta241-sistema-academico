@@ -10,7 +10,9 @@ const authSession = text[join(root,'lib/auth/session.ts')] ?? '';
 if(!/select\('display_name,is_active'\)/.test(authSession)||!/if \(!profile\?\.is_active\) return null/.test(authSession)) findings.push(['HIGH','lib/auth/session.ts','Inactive profiles are not blocked at application boundary']);
 for(const [file,body] of Object.entries(text)){
   if(/NEXT_PUBLIC_SUPABASE_SERVICE_ROLE/i.test(body)) findings.push(['CRITICAL',file,'Service role exposed as NEXT_PUBLIC']);
-  if(/SUPABASE_SERVICE_ROLE_KEY\s*=\s*[^\n#\s][^\n]*/.test(body) && !file.endsWith('.env.example')) findings.push(['CRITICAL',file,'Possible committed service role secret']);
+  // Runtime wiring such as $GITHUB_ENV, shell expansions and printf placeholders
+  // is safe. Flag only literal Supabase secret/JWT-looking values committed to text.
+  if(!file.endsWith('.env.example') && /SUPABASE_SERVICE_ROLE_KEY\s*=\s*["']?(?:sb_secret_[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})/i.test(body)) findings.push(['CRITICAL',file,'Committed service role credential detected']);
   if(/\.(?:tsx?|jsx?)$/.test(file) && /dangerouslySetInnerHTML/.test(body)) findings.push(['MEDIUM',file,'Review raw HTML usage']);
   if(/(?:Alumno|Docente|Control|Admin)Demo!20\d{2}/.test(body)) findings.push(['HIGH',file,'Predictable demo credential committed in source']);
 }
