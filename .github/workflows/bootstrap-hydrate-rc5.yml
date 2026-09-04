@@ -21,37 +21,22 @@ jobs:
           ref: develop
           fetch-depth: 0
 
-      - name: Diagnose bootstrap chunks
+      - name: Reconstruct candidate RC5 archive
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          valid = re.compile(r'^[A-Za-z0-9+/=]*$')
-          total = 0
-          for p in sorted(Path('bootstrap/rc5').glob('part-*')):
-              raw = p.read_text()
-              clean = ''.join(raw.split())
-              bad = ''.join(sorted(set(ch for ch in clean if ch not in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=')))
-              print(f'{p}: raw={len(raw)} clean={len(clean)} mod4={len(clean)%4} bad={bad!r}')
-              total += len(clean)
-          print('total_clean=', total, 'mod4=', total % 4)
-          PY
-
-      - name: Reconstruct RC5 archive
-        shell: bash
-        run: |
-          set -euo pipefail
-          LC_ALL=C cat bootstrap/rc5/part-* | tr -cd 'A-Za-z0-9+/=' > /tmp/rc5.b64
-          echo "Sanitized base64 bytes: $(wc -c < /tmp/rc5.b64)"
+          # part-09 is shorter than the fixed-size chunks and therefore marks
+          # the end of the original archive. part-10/11 came from a later,
+          # incompatible transfer attempt and must not be concatenated.
+          cat bootstrap/rc5/part-{00..09} | tr -d '\r\n\t ' > /tmp/rc5.b64
+          echo "Candidate base64 bytes: $(wc -c < /tmp/rc5.b64)"
           rem=$(( $(wc -c < /tmp/rc5.b64) % 4 ))
           if [ "$rem" -eq 2 ]; then printf '==' >> /tmp/rc5.b64; fi
           if [ "$rem" -eq 3 ]; then printf '=' >> /tmp/rc5.b64; fi
-          if [ "$rem" -eq 1 ]; then echo 'Irrecoverable base64 length (mod 4 = 1)' >&2; exit 2; fi
+          if [ "$rem" -eq 1 ]; then echo 'Irrecoverable base64 length' >&2; exit 2; fi
           base64 --decode /tmp/rc5.b64 > /tmp/rc5.tar.xz
           xz -t /tmp/rc5.tar.xz
-          echo "XZ bytes: $(wc -c < /tmp/rc5.tar.xz)"
+          echo "Validated XZ bytes: $(wc -c < /tmp/rc5.tar.xz)"
           mkdir -p /tmp/rc5-src
           tar -xJf /tmp/rc5.tar.xz -C /tmp/rc5-src
           find /tmp/rc5-src -maxdepth 3 -name package.json -print
@@ -87,8 +72,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: package.json
 
       - name: Generate deterministic npm lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
