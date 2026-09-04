@@ -94,6 +94,7 @@ jobs:
           for source, (target, dims) in jobs.items():
               raw = Path(source).read_text()
               clean = ''.join(re.findall(r'[A-Za-z0-9+/=]', raw))
+              clean = clean.split('=', 1)[0]
               clean += '=' * ((4 - len(clean) % 4) % 4)
               try:
                   data = base64.b64decode(clean, validate=True)
