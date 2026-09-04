@@ -160,6 +160,21 @@ jobs:
           cd /tmp/cbta241-restore
           RESTORE_DB="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
           test -n "$RESTORE_DB"
+          docker exec -i "$RESTORE_DB" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE
+            truncate_sql text;
+          BEGIN
+            SELECT 'TRUNCATE TABLE ' || string_agg(format('%I.%I', schemaname, tablename), ', ') || ' RESTART IDENTITY CASCADE'
+              INTO truncate_sql
+              FROM pg_tables
+             WHERE schemaname = 'public';
+            IF truncate_sql IS NOT NULL THEN
+              EXECUTE truncate_sql;
+            END IF;
+          END
+          $$;
+          SQL
           docker exec -i "$RESTORE_DB" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/cbta241-data.sql
           RESTORED_COUNTS="$(docker exec "$RESTORE_DB" psql -U postgres -d postgres -Atc "select concat_ws('|',(select count(*) from public.students),(select count(*) from public.teachers),(select count(*) from public.subjects),(select count(*) from public.enrollments),(select count(*) from public.grades),(select count(*) from public.grade_publications),(select count(*) from public.audit_logs));")"
           test "$RESTORED_COUNTS" = "$SOURCE_COUNTS"
