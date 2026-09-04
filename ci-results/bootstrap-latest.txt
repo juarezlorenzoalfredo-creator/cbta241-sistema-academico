@@ -1,0 +1,4 @@
+run_id=33834372160
+run_url=https://github.com/juarezlorenzoalfredo-creator/cbta241-sistema-academico/actions/runs/33834372160
+status=failure
+head_sha=edf56edfcad913dbe5d76842d2c0895b9d3f6898
