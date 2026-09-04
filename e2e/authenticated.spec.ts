@@ -4,7 +4,10 @@ async function login(page: Page, email: string, password: string) {
   await page.goto('/login');
   await page.getByLabel('Correo').fill(email);
   await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button', { name: 'Ingresar' }).click();
+  await Promise.all([
+    page.waitForURL((url) => url.pathname !== '/login', { timeout: 10_000 }),
+    page.getByRole('button', { name: 'Ingresar' }).click()
+  ]);
 }
 
 const controlEmail = process.env.E2E_CONTROL_EMAIL;
