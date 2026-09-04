@@ -70,8 +70,6 @@ jobs:
         run: |
           set -euo pipefail
           rsync -a --exclude='.git/' "$ROOT/" ./
-          rm -rf .bootstrap bootstrap
-          rm -f .github/workflows/bootstrap-hydrate-rc5.yml
           test -f package.json
           test -f .github/workflows/ci.yml
 
@@ -178,8 +176,13 @@ jobs:
       - name: Public E2E on desktop Chromium
         run: npx playwright test e2e/public.spec.ts --project=desktop-chromium
 
-      - name: Regenerate release manifest after verified changes
-        run: npm run release:manifest
+      - name: Prepare action-token commit shape and regenerate release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout HEAD -- .bootstrap bootstrap .github/workflows/bootstrap-hydrate-rc5.yml
+          rm -f .github/workflows/ci.yml
+          npm run release:manifest
 
       - name: Commit hydrated RC5 only after all gates pass
         shell: bash
@@ -192,7 +195,7 @@ jobs:
             echo 'Nothing to commit.'
             exit 0
           fi
-          git commit -m 'chore: hydrate RC5 source and npm lockfile after passing gates'
+          git commit -m 'chore: hydrate verified RC5 source and npm lockfile'
           git push origin HEAD:develop
 
       - name: Record failed bootstrap run
