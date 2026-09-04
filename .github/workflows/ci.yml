@@ -123,11 +123,11 @@ jobs:
           version: latest
       - name: Start seeded source database
         run: supabase start
-      - name: Create logical data backup and capture source integrity counts
+      - name: Create logical application-data backup and capture source integrity counts
         shell: bash
         run: |
           set -euo pipefail
-          supabase db dump --local --data-only --use-copy -f /tmp/cbta241-data.sql
+          supabase db dump --local --data-only --use-copy --schema public -f /tmp/cbta241-data.sql
           test -s /tmp/cbta241-data.sql
           SOURCE_DB="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
           test -n "$SOURCE_DB"
@@ -153,7 +153,7 @@ jobs:
           PY
           cd /tmp/cbta241-restore
           supabase start
-      - name: Restore logical data and verify counts plus RLS
+      - name: Restore logical application data and verify counts plus RLS
         shell: bash
         run: |
           set -euo pipefail
