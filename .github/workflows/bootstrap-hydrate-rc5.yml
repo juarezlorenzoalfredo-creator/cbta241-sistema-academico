@@ -82,30 +82,33 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p public/institution
-          base64 --decode /tmp/cbta241-assets/icon-192.b64 > public/institution/icon-192.png
-          base64 --decode /tmp/cbta241-assets/icon-512.b64 > public/institution/icon-512.png
-          base64 --decode /tmp/cbta241-assets/icon-maskable-512.b64 > public/institution/icon-maskable-512.png
-          cp public/institution/icon-512.png public/institution/cbta241-logo.png
-          file public/institution/icon-192.png public/institution/icon-512.png public/institution/icon-maskable-512.png public/institution/cbta241-logo.png
           python - <<'PY'
           from pathlib import Path
-          import struct
+          import base64, re, struct
 
-          expected = {
-              'public/institution/icon-192.png': (192, 192),
-              'public/institution/icon-512.png': (512, 512),
-              'public/institution/icon-maskable-512.png': (512, 512),
-              'public/institution/cbta241-logo.png': (512, 512),
+          jobs = {
+              '/tmp/cbta241-assets/icon-192.b64': ('public/institution/icon-192.png', (192, 192)),
+              '/tmp/cbta241-assets/icon-512.b64': ('public/institution/icon-512.png', (512, 512)),
+              '/tmp/cbta241-assets/icon-maskable-512.b64': ('public/institution/icon-maskable-512.png', (512, 512)),
           }
-          for name, dims in expected.items():
-              data = Path(name).read_bytes()
+          for source, (target, dims) in jobs.items():
+              raw = Path(source).read_text()
+              clean = ''.join(re.findall(r'[A-Za-z0-9+/=]', raw))
+              clean += '=' * ((4 - len(clean) % 4) % 4)
+              try:
+                  data = base64.b64decode(clean, validate=True)
+              except Exception as exc:
+                  raise SystemExit(f'{source}: base64 decode failed: {exc}')
               if data[:8] != b'\x89PNG\r\n\x1a\n':
-                  raise SystemExit(f'{name}: invalid PNG signature')
+                  raise SystemExit(f'{source}: decoded payload is not PNG')
               width, height = struct.unpack('>II', data[16:24])
               if (width, height) != dims:
-                  raise SystemExit(f'{name}: expected {dims}, got {(width, height)}')
-              print(name, width, height, len(data))
+                  raise SystemExit(f'{source}: expected {dims}, got {(width, height)}')
+              Path(target).write_bytes(data)
+              print(target, width, height, len(data))
+          Path('public/institution/cbta241-logo.png').write_bytes(Path('public/institution/icon-512.png').read_bytes())
           PY
+          file public/institution/icon-192.png public/institution/icon-512.png public/institution/icon-maskable-512.png public/institution/cbta241-logo.png
 
       - name: Apply server-time lint hardening
         shell: bash
