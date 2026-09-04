@@ -1,0 +1,117 @@
+name: bootstrap-hydrate-rc5
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - '.github/workflows/bootstrap-hydrate-rc5.yml'
+      - 'bootstrap/rc5/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  hydrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout bootstrap branch
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Reconstruct RC5 archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat bootstrap/rc5/part-* | tr -d '\r\n\t ' > /tmp/rc5.b64
+          echo "Base64 bytes: $(wc -c < /tmp/rc5.b64)"
+          base64 --decode /tmp/rc5.b64 > /tmp/rc5.tar.xz
+          xz -t /tmp/rc5.tar.xz
+          echo "XZ bytes: $(wc -c < /tmp/rc5.tar.xz)"
+          mkdir -p /tmp/rc5-src
+          tar -xJf /tmp/rc5.tar.xz -C /tmp/rc5-src
+          find /tmp/rc5-src -maxdepth 3 -name package.json -print
+
+      - name: Locate and verify RC5 source
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE=$(find /tmp/rc5-src -maxdepth 3 -name package.json -type f | head -n 1)
+          test -n "$PACKAGE"
+          ROOT=$(dirname "$PACKAGE")
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+          node -e "const p=require('$ROOT/package.json'); if(p.version!=='1.0.0-rc.5') throw new Error('Unexpected version '+p.version); console.log(p.name,p.version,p.dependencies.next)"
+          test -f "$ROOT/docs/RELEASE_MANIFEST.json"
+          node -e "const m=require('$ROOT/docs/RELEASE_MANIFEST.json'); if(m.version!=='1.0.0-rc.5') throw new Error('Manifest version mismatch'); if(m.sourceTreeSha256!=='4f6b580dde3fe42e46b550fc46e67e1210b41abceef167cce8dd22f9eb6169d9') throw new Error('Manifest tree hash mismatch'); console.log('manifest',m.fileCount,m.sourceTreeSha256)"
+
+      - name: Hydrate source tree
+        shell: bash
+        env:
+          ROOT: ${{ steps.source.outputs.root }}
+        run: |
+          set -euo pipefail
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.bootstrap/' \
+            --exclude='bootstrap/' \
+            "$ROOT/" ./
+          test -f package.json
+          test -f .github/workflows/ci.yml
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package.json
+
+      - name: Generate deterministic npm lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Install dependencies from lockfile
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Security audit
+        run: npm run test:security
+
+      - name: SQL contract audit
+        run: npm run test:sql
+
+      - name: Project integrity audit
+        run: npm run test:project
+
+      - name: Accessibility static audit
+        run: npm run test:a11y:static
+
+      - name: Next.js build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+        run: npm run build
+
+      - name: Commit hydrated RC5 only after gates pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Nothing to commit.'
+            exit 0
+          fi
+          git commit -m 'chore: hydrate RC5 source and npm lockfile'
+          git push origin HEAD:develop
