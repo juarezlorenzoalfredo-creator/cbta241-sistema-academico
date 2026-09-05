@@ -2,8 +2,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { signOutAction } from '@/app/actions';
 import type { AuthContext } from '@/lib/auth/session';
+import { MobileNav, type PortalNavItem } from '@/components/MobileNav';
 
-export type PortalNavItem = { href: string; label: string; shortLabel?: string };
+export type { PortalNavItem } from '@/components/MobileNav';
 
 export function PortalShell({context, roleLabel, nav, children}: {
   context: AuthContext;
@@ -31,8 +32,6 @@ export function PortalShell({context, roleLabel, nav, children}: {
       </header>
       <main id="contenido" className="main">{children}</main>
     </section>
-    <nav className="mobile-bar" aria-label="Navegación móvil">
-      {nav.slice(0,4).map((item)=><Link key={item.href} href={item.href}>{item.shortLabel ?? item.label}</Link>)}
-    </nav>
+    <MobileNav nav={nav}/>
   </div>;
 }
