@@ -21,10 +21,6 @@ export function MobileNav({ nav }: { nav: PortalNavItem[] }) {
   const overflowItems = nav.length <= 4 ? [] : nav.slice(3);
 
   useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -43,6 +39,7 @@ export function MobileNav({ nav }: { nav: PortalNavItem[] }) {
               key={item.href}
               href={item.href}
               aria-current={current ? 'page' : undefined}
+              onClick={() => setOpen(false)}
               style={current ? { background: 'rgba(255,255,255,.12)', color: 'white' } : undefined}
             >
               {item.shortLabel ?? item.label}
